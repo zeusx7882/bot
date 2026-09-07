@@ -56,6 +56,8 @@ class TicketService {
 
     const ticket = await this._acquireLock(guild, member.id, option);
 
+    const botMember = await guild.members.fetchMe().catch(() => guild.members.me);
+
     let channel = null;
     try {
       channel = await guild.channels.create({
@@ -67,7 +69,7 @@ class TicketService {
           guildId: guild.id,
           memberId: member.id,
           supportRoleId: supportRole.id,
-          botUserId: guild.members.me?.id,
+          botUserId: botMember?.id,
         }),
       });
 

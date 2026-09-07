@@ -32,6 +32,7 @@ function fakeGuild({ categoryId = 'cat1', roleId = 'role1', channelsThatFail = n
     id: 'guildA',
     members: {
       me: { id: 'bot1' },
+      fetchMe: async () => ({ id: 'bot1' }),
     },
     channels: {
       fetch: async (id) => {
