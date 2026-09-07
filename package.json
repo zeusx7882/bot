@@ -1,0 +1,21 @@
+{
+  "name": "ticket-bot",
+  "version": "1.0.0",
+  "description": "Bot de tickets para Discord usando Components V2",
+  "private": true,
+  "license": "MIT",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "register:commands": "node scripts/registerCommands.js",
+    "test": "node --test",
+    "check": "node scripts/checkSyntax.js"
+  },
+  "dependencies": {
+    "discord.js": "14.27.0",
+    "dotenv": "17.4.2"
+  }
+}
