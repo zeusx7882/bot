@@ -4,6 +4,7 @@ const customId = require('../ui/customId');
 const configHandlers = require('./configHandlers');
 const publicPanelHandlers = require('./publicPanelHandlers');
 const { logger } = require('../utils/logger');
+const { MessageFlags } = require('discord.js');
 
 /**
  * Roteador global de interações. Usa exclusivamente o customId persistente
@@ -48,9 +49,9 @@ async function safeErrorReply(interaction) {
   const content = '❌ Ocorreu um erro inesperado ao processar sua ação. Tente novamente.';
   if (!interaction.isRepliable || !interaction.isRepliable()) return;
   if (interaction.replied || interaction.deferred) {
-    await interaction.followUp({ content, ephemeral: true });
+    await interaction.followUp({ content, flags: MessageFlags.Ephemeral });
   } else {
-    await interaction.reply({ content, ephemeral: true });
+    await interaction.reply({ content, flags: MessageFlags.Ephemeral });
   }
 }
 

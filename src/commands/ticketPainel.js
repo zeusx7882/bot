@@ -1,6 +1,6 @@
 'use strict';
 
-const { SlashCommandBuilder, PermissionFlagsBits, InteractionContextType } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, InteractionContextType, MessageFlags } = require('discord.js');
 const { assertGuildAdmin, AuthorizationError } = require('../utils/permissions');
 const { buildConfigPanel } = require('../ui/configPanel');
 const { logger } = require('../utils/logger');
@@ -16,7 +16,7 @@ async function execute(interaction, context) {
     await assertGuildAdmin(interaction);
   } catch (error) {
     if (error instanceof AuthorizationError) {
-      await interaction.reply({ content: error.message, ephemeral: true });
+      await interaction.reply({ content: error.message, flags: MessageFlags.Ephemeral });
       return;
     }
     throw error;

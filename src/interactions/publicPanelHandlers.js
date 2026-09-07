@@ -14,7 +14,7 @@ const { logger } = require('../utils/logger');
  */
 async function handleOpenSelect(interaction, parsed, context) {
   if (!interaction.inGuild() || interaction.guildId !== parsed.guildId) {
-    await interaction.reply({ content: 'Este painel não é válido neste servidor.', ephemeral: true });
+    await interaction.reply({ content: 'Este painel não é válido neste servidor.', flags: MessageFlags.Ephemeral });
     return;
   }
 

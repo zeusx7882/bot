@@ -30,7 +30,7 @@ async function guard(interaction, expectedGuildId) {
 }
 
 async function replyAuthError(interaction, error) {
-  const payload = { content: error.message, ephemeral: true };
+  const payload = { content: error.message, flags: MessageFlags.Ephemeral };
   if (interaction.deferred || interaction.replied) {
     await interaction.followUp(payload).catch(() => {});
   } else {
@@ -119,7 +119,7 @@ const handleButton = withGuard(async (interaction, parsed, context) => {
       if (options.length === 0) {
         return interaction.reply({
           content: 'Adicione ao menos uma opção antes de pré-visualizar o painel.',
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
       }
       const preview = buildPublicPanel({ guildId, config, options });
@@ -132,18 +132,18 @@ const handleButton = withGuard(async (interaction, parsed, context) => {
         await interaction.followUp({
           content:
             'Não é possível publicar: configure ao menos uma opção, a categoria, o cargo de suporte e o canal de publicação.',
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
         return interaction.editReply(currentPanelPayload(context, guildId, interaction.guild.name));
       }
       try {
         await publishPanel({ guild: interaction.guild, config, options, configService: context.configService });
-        await interaction.followUp({ content: '✅ Painel publicado/atualizado com sucesso.', ephemeral: true });
+        await interaction.followUp({ content: '✅ Painel publicado/atualizado com sucesso.', flags: MessageFlags.Ephemeral });
       } catch (error) {
         logger.error('Falha ao publicar painel', error);
         await interaction.followUp({
           content: `❌ Não foi possível publicar o painel: ${error.message}`,
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
       }
       return interaction.editReply(currentPanelPayload(context, guildId, interaction.guild.name));
@@ -152,7 +152,7 @@ const handleButton = withGuard(async (interaction, parsed, context) => {
       return interaction.update(buildClosedPanelView());
     default:
       logger.warn(`Ação de botão de configuração desconhecida: ${action}`);
-      return interaction.reply({ content: 'Ação desconhecida.', ephemeral: true });
+      return interaction.reply({ content: 'Ação desconhecida.', flags: MessageFlags.Ephemeral });
   }
 });
 
@@ -186,7 +186,7 @@ const handleSelect = withGuard(async (interaction, parsed, context) => {
     }
   } catch (error) {
     if (error instanceof ValidationError) {
-      await interaction.followUp({ content: `❌ ${error.message}`, ephemeral: true });
+      await interaction.followUp({ content: `❌ ${error.message}`, flags: MessageFlags.Ephemeral });
     } else {
       throw error;
     }
@@ -226,7 +226,7 @@ const handleModalSubmit = withGuard(async (interaction, parsed, context) => {
     }
   } catch (error) {
     if (error instanceof ValidationError) {
-      return interaction.reply({ content: `❌ ${error.message}`, ephemeral: true });
+      return interaction.reply({ content: `❌ ${error.message}`, flags: MessageFlags.Ephemeral });
     }
     throw error;
   }
