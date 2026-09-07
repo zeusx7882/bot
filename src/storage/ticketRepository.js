@@ -84,8 +84,12 @@ class TicketRepository {
   }
 }
 
+const SQLITE_CONSTRAINT_UNIQUE = 2067;
+
 function isUniqueConstraintError(error) {
-  return Boolean(error && typeof error.message === 'string' && error.message.includes('UNIQUE constraint failed'));
+  if (!error) return false;
+  if (error.errcode === SQLITE_CONSTRAINT_UNIQUE) return true;
+  return typeof error.message === 'string' && error.message.includes('UNIQUE constraint failed');
 }
 
 module.exports = { TicketRepository, DuplicateTicketError };

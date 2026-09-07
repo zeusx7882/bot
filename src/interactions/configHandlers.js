@@ -38,14 +38,25 @@ async function replyAuthError(interaction, error) {
   }
 }
 
-async function handleButton(interaction, parsed, context) {
-  try {
-    await guard(interaction, parsed.guildId);
-  } catch (error) {
-    if (error instanceof AuthorizationError) return replyAuthError(interaction, error);
-    throw error;
-  }
+/**
+ * Envolve um handler garantindo que `guard()` seja executado antes dele.
+ * Centraliza o tratamento de `AuthorizationError` para os três tipos de
+ * interação de configuração (botão, select e modal), evitando duplicar o
+ * mesmo bloco try/catch em cada um.
+ */
+function withGuard(handler) {
+  return async (interaction, parsed, context) => {
+    try {
+      await guard(interaction, parsed.guildId);
+    } catch (error) {
+      if (error instanceof AuthorizationError) return replyAuthError(interaction, error);
+      throw error;
+    }
+    return handler(interaction, parsed, context);
+  };
+}
 
+const handleButton = withGuard(async (interaction, parsed, context) => {
   const { action, args } = parsed;
   const guildId = parsed.guildId;
 
@@ -143,16 +154,9 @@ async function handleButton(interaction, parsed, context) {
       logger.warn(`Ação de botão de configuração desconhecida: ${action}`);
       return interaction.reply({ content: 'Ação desconhecida.', ephemeral: true });
   }
-}
+});
 
-async function handleSelect(interaction, parsed, context) {
-  try {
-    await guard(interaction, parsed.guildId);
-  } catch (error) {
-    if (error instanceof AuthorizationError) return replyAuthError(interaction, error);
-    throw error;
-  }
-
+const handleSelect = withGuard(async (interaction, parsed, context) => {
   const { action } = parsed;
   const guildId = parsed.guildId;
 
@@ -189,16 +193,9 @@ async function handleSelect(interaction, parsed, context) {
   }
 
   return interaction.editReply(currentPanelPayload(context, guildId, interaction.guild.name));
-}
+});
 
-async function handleModalSubmit(interaction, parsed, context) {
-  try {
-    await guard(interaction, parsed.guildId);
-  } catch (error) {
-    if (error instanceof AuthorizationError) return replyAuthError(interaction, error);
-    throw error;
-  }
-
+const handleModalSubmit = withGuard(async (interaction, parsed, context) => {
   const { action, args } = parsed;
   const guildId = parsed.guildId;
 
@@ -239,6 +236,6 @@ async function handleModalSubmit(interaction, parsed, context) {
     return interaction.update(payload);
   }
   return interaction.reply(payload);
-}
+});
 
 module.exports = { handleButton, handleSelect, handleModalSubmit };
