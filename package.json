@@ -4,12 +4,12 @@
   "description": "Bot de tickets para Discord usando Components V2",
   "private": true,
   "license": "MIT",
-  "main": "src/index.js",
+  "main": "index.js",
   "engines": {
     "node": ">=22.5.0"
   },
   "scripts": {
-    "start": "node src/index.js",
+    "start": "node index.js",
     "register:commands": "node scripts/registerCommands.js",
     "test": "node --test",
     "check": "node scripts/checkSyntax.js"

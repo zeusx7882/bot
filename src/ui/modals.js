@@ -6,6 +6,7 @@ const { LIMITS } = require('../domain/validation');
 const { MAX_CREDENTIAL_INPUT } = require('../domain/emailVerification');
 
 const SCOPE = 'cfg';
+const DEFAULT_PAGE = 'appearance';
 
 function textInputLabel({ label, customIdValue, style, required, value, maxLength, placeholder }) {
   const input = new TextInputBuilder().setCustomId(customIdValue).setStyle(style).setRequired(Boolean(required));
@@ -15,9 +16,10 @@ function textInputLabel({ label, customIdValue, style, required, value, maxLengt
   return new LabelBuilder().setLabel(label).setTextInputComponent(input);
 }
 
-function buildTitleModal(guildId, currentValue) {
+function buildTitleModal(guildId, currentValue, page) {
+  const pageId = page || DEFAULT_PAGE;
   return new ModalBuilder()
-    .setCustomId(customId.build(SCOPE, 'title_submit', guildId))
+    .setCustomId(customId.build(SCOPE, 'title_submit', guildId, pageId))
     .setTitle('Editar título do painel')
     .addLabelComponents(
       textInputLabel({
@@ -31,9 +33,10 @@ function buildTitleModal(guildId, currentValue) {
     );
 }
 
-function buildDescriptionModal(guildId, currentValue) {
+function buildDescriptionModal(guildId, currentValue, page) {
+  const pageId = page || DEFAULT_PAGE;
   return new ModalBuilder()
-    .setCustomId(customId.build(SCOPE, 'desc_submit', guildId))
+    .setCustomId(customId.build(SCOPE, 'desc_submit', guildId, pageId))
     .setTitle('Editar descrição do painel')
     .addLabelComponents(
       textInputLabel({
@@ -47,9 +50,10 @@ function buildDescriptionModal(guildId, currentValue) {
     );
 }
 
-function buildImageModal(guildId, currentValue) {
+function buildImageModal(guildId, currentValue, page) {
+  const pageId = page || DEFAULT_PAGE;
   return new ModalBuilder()
-    .setCustomId(customId.build(SCOPE, 'image_submit', guildId))
+    .setCustomId(customId.build(SCOPE, 'image_submit', guildId, pageId))
     .setTitle('Definir imagem do painel')
     .addLabelComponents(
       textInputLabel({
@@ -63,9 +67,10 @@ function buildImageModal(guildId, currentValue) {
     );
 }
 
-function buildDomainModal(guildId, currentValue) {
+function buildDomainModal(guildId, currentValue, page) {
+  const pageId = page || DEFAULT_PAGE;
   return new ModalBuilder()
-    .setCustomId(customId.build(SCOPE, 'domain_submit', guildId))
+    .setCustomId(customId.build(SCOPE, 'domain_submit', guildId, pageId))
     .setTitle('Definir domínio/URL do site')
     .addLabelComponents(
       textInputLabel({
@@ -80,9 +85,10 @@ function buildDomainModal(guildId, currentValue) {
     );
 }
 
-function buildOptionModal(guildId, { optionId = null, label, description, emoji } = {}) {
+function buildOptionModal(guildId, page, { optionId = null, label, description, emoji } = {}) {
+  const pageId = page || DEFAULT_PAGE;
   const action = optionId ? 'opt_edit_submit' : 'opt_add_submit';
-  const args = optionId ? [optionId] : [];
+  const args = optionId ? [optionId, pageId] : [pageId];
   const modal = new ModalBuilder()
     .setCustomId(customId.build(SCOPE, action, guildId, ...args))
     .setTitle(optionId ? 'Editar opção do menu' : 'Adicionar opção ao menu')
@@ -120,9 +126,10 @@ function buildOptionModal(guildId, { optionId = null, label, description, emoji 
   return modal;
 }
 
-function buildEmailOptionModal(guildId, config) {
+function buildEmailOptionModal(guildId, config, page) {
+  const pageId = page || DEFAULT_PAGE;
   return new ModalBuilder()
-    .setCustomId(customId.build(SCOPE, 'email_opt_submit', guildId))
+    .setCustomId(customId.build(SCOPE, 'email_opt_submit', guildId, pageId))
     .setTitle('Editar opção Verificar e-mail')
     .addLabelComponents(
       textInputLabel({

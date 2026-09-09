@@ -22,3 +22,9 @@ test('parse retorna null para customId de outro namespace ou inválido', () => {
 test('build lança erro se exceder 100 caracteres (limite do Discord)', () => {
   assert.throws(() => customId.build('cfg', 'x'.repeat(90), '111222333'));
 });
+
+test('customId de edição com optionId + página permanece abaixo de 100 caracteres', () => {
+  const optionId = '123e4567-e89b-12d3-a456-426614174000';
+  const id = customId.build('cfg', 'opt_edit_submit', '123456789012345678', optionId, 'normals');
+  assert.ok(id.length <= 100);
+});
