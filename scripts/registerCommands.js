@@ -2,8 +2,7 @@
 
 const { REST, Routes } = require('discord.js');
 const { readEnv } = require('../src/config/env');
-const ticketPainelCommand = require('../src/commands/ticketPainel');
-const linkPagamentoCommand = require('../src/commands/linkPagamento');
+const { getCommandPayloads } = require('./commandDefinitions');
 const { logger } = require('../src/utils/logger');
 
 /**
@@ -20,7 +19,7 @@ async function registerCommands() {
     );
   }
 
-  const commands = [ticketPainelCommand.data.toJSON(), linkPagamentoCommand.data.toJSON()];
+  const commands = getCommandPayloads();
   const rest = new REST().setToken(env.token);
 
   if (env.guildId) {
