@@ -18,6 +18,10 @@ const sampleConfig = {
   panel_channel_id: null,
   panel_message_id: null,
   site_domain: null,
+  email_option_enabled: 0,
+  email_option_label: 'Verificar e-mail',
+  email_option_description: 'Descrição e-mail',
+  email_category_id: null,
 };
 
 const sampleOptions = [{ id: 'opt-1', label: 'Suporte', description: 'Ajuda geral', emoji: '🎫' }];
@@ -108,3 +112,13 @@ function findComponentByType(component, type) {
   }
   return null;
 }
+
+
+test('buildPublicPanel inclui opção especial de e-mail quando habilitada', () => {
+  const config = { ...sampleConfig, email_option_enabled: 1, email_category_id: 'cat-email' };
+  const payload = buildPublicPanel({ guildId: '123', config, options: sampleOptions });
+  const json = payload.components[0].toJSON();
+  const select = findComponentByType(json, 3);
+  const values = select.options.map((opt) => opt.value);
+  assert.ok(values.includes('__email_verify_option__'));
+});

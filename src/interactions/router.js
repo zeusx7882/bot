@@ -35,8 +35,16 @@ async function routeInteraction(interaction, context) {
         if (interaction.isModalSubmit()) return await configHandlers.handleModalSubmit(interaction, parsed, context);
       }
 
-      if (parsed.scope === 'ticket' && parsed.action === 'open' && interaction.isStringSelectMenu()) {
-        return await publicPanelHandlers.handleOpenSelect(interaction, parsed, context);
+      if (parsed.scope === 'ticket') {
+        if (parsed.action === 'open' && interaction.isStringSelectMenu()) {
+          return await publicPanelHandlers.handleOpenSelect(interaction, parsed, context);
+        }
+        if (interaction.isButton()) {
+          return await publicPanelHandlers.handleButton(interaction, parsed, context);
+        }
+        if (interaction.isModalSubmit()) {
+          return await publicPanelHandlers.handleModalSubmit(interaction, parsed, context);
+        }
       }
     }
   } catch (error) {

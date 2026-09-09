@@ -24,10 +24,15 @@ function truncate(text, max) {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
-/**
- * Monta o payload (Components V2) do painel de configuração administrativo.
- * Sempre enviado como resposta efêmera, visível apenas para quem o abriu.
- */
+function canPublishSnapshot(config, options) {
+  const hasNormal = options.length > 0;
+  const hasEmail = Boolean(config.email_option_enabled);
+  if (!config.publish_channel_id || (!hasNormal && !hasEmail)) return false;
+  if (hasNormal && (!config.category_id || !config.support_role_id)) return false;
+  if (hasEmail && !config.email_category_id) return false;
+  return true;
+}
+
 function buildConfigPanel({ guildId, guildName, config, options }) {
   const container = new ContainerBuilder();
 
@@ -97,7 +102,7 @@ function buildConfigPanel({ guildId, guildName, config, options }) {
     new SectionBuilder()
       .addTextDisplayComponents(
         new TextDisplayBuilder().setContent(
-          `**Domínio/URL do site**\n${config.site_domain ? config.site_domain : '_Não configurado (preparação para função futura)._'}`
+          `**Domínio/URL do site**\n${config.site_domain ? config.site_domain : '_Não configurado (preparação para função futura)._'}\n`
         )
       )
       .setButtonAccessory(
@@ -120,9 +125,48 @@ function buildConfigPanel({ guildId, guildName, config, options }) {
   }
 
   container.addSeparatorComponents(new SeparatorBuilder());
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent('### 📧 Opção especial de verificação'));
+
+  container.addSectionComponents(
+    new SectionBuilder()
+      .addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(
+          [
+            `**Status:** ${config.email_option_enabled ? 'Habilitada' : 'Desabilitada'}`,
+            `**Título:** ${config.email_option_label}`,
+            `**Descrição:** ${config.email_option_description}`,
+            `**Categoria exclusiva:** ${config.email_category_id ? `<#${config.email_category_id}>` : '_Não configurada_'}`,
+          ].join('\n')
+        )
+      )
+      .setButtonAccessory(
+        new ButtonBuilder()
+          .setCustomId(customId.build(SCOPE, 'email_opt', guildId))
+          .setLabel('Editar título/descrição')
+          .setStyle(ButtonStyle.Secondary)
+      )
+  );
+
+  container.addActionRowComponents(
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(customId.build(SCOPE, 'email_opt_toggle', guildId))
+        .setLabel(config.email_option_enabled ? 'Desabilitar opção' : 'Habilitar opção')
+        .setStyle(config.email_option_enabled ? ButtonStyle.Danger : ButtonStyle.Success)
+    )
+  );
+
+  const emailCategorySelect = new ChannelSelectMenuBuilder()
+    .setCustomId(customId.build(SCOPE, 'email_category', guildId))
+    .setPlaceholder('Categoria exclusiva para tickets de e-mail')
+    .addChannelTypes(ChannelType.GuildCategory);
+  if (config.email_category_id) emailCategorySelect.setDefaultChannels(config.email_category_id);
+  container.addActionRowComponents(new ActionRowBuilder().addComponents(emailCategorySelect));
+
+  container.addSeparatorComponents(new SeparatorBuilder());
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
-      `### 🎫 Opções do menu de tickets (${options.length}/${MAX_OPTIONS_PER_GUILD})`
+      `### 🎫 Opções normais do menu (${options.length}/${MAX_OPTIONS_PER_GUILD})`
     )
   );
 
@@ -142,18 +186,18 @@ function buildConfigPanel({ guildId, guildName, config, options }) {
       )
     );
   } else {
-    container.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent('_Nenhuma opção cadastrada ainda. O painel não pode ser publicado sem opções._')
-    );
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent('_Nenhuma opção normal cadastrada._'));
   }
+
+  const totalPublicOptions = options.length + (config.email_option_enabled ? 1 : 0);
 
   container.addActionRowComponents(
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(customId.build(SCOPE, 'opt_add', guildId))
-        .setLabel('Adicionar opção')
+        .setLabel('Adicionar opção normal')
         .setStyle(ButtonStyle.Success)
-        .setDisabled(options.length >= MAX_OPTIONS_PER_GUILD)
+        .setDisabled(totalPublicOptions >= MAX_OPTIONS_PER_GUILD)
     )
   );
 
@@ -162,14 +206,14 @@ function buildConfigPanel({ guildId, guildName, config, options }) {
 
   const categorySelect = new ChannelSelectMenuBuilder()
     .setCustomId(customId.build(SCOPE, 'category', guildId))
-    .setPlaceholder('Categoria onde os canais de ticket serão criados')
+    .setPlaceholder('Categoria dos tickets normais')
     .addChannelTypes(ChannelType.GuildCategory);
   if (config.category_id) categorySelect.setDefaultChannels(config.category_id);
   container.addActionRowComponents(new ActionRowBuilder().addComponents(categorySelect));
 
   const roleSelect = new RoleSelectMenuBuilder()
     .setCustomId(customId.build(SCOPE, 'role', guildId))
-    .setPlaceholder('Cargo da equipe de suporte');
+    .setPlaceholder('Cargo da equipe para tickets normais');
   if (config.support_role_id) roleSelect.setDefaultRoles(config.support_role_id);
   container.addActionRowComponents(new ActionRowBuilder().addComponents(roleSelect));
 
@@ -191,7 +235,7 @@ function buildConfigPanel({ guildId, guildName, config, options }) {
         .setCustomId(customId.build(SCOPE, 'publish', guildId))
         .setLabel(config.panel_message_id ? 'Atualizar painel publicado' : 'Publicar painel')
         .setStyle(ButtonStyle.Success)
-        .setDisabled(options.length === 0 || !config.category_id || !config.support_role_id || !config.publish_channel_id)
+        .setDisabled(!canPublishSnapshot(config, options))
     )
   );
 
@@ -202,10 +246,6 @@ function buildConfigPanel({ guildId, guildName, config, options }) {
   };
 }
 
-/**
- * View de detalhe de uma opção específica, com botões para editar ou
- * remover (com confirmação).
- */
 function buildOptionDetailView({ guildId, option }) {
   const container = new ContainerBuilder();
   container.addTextDisplayComponents(
@@ -245,7 +285,7 @@ function buildOptionRemoveConfirmView({ guildId, option }) {
   const container = new ContainerBuilder();
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
-      `## ⚠️ Remover opção "${option.label}"?\nEsta ação não pode ser desfeita. Tickets já existem não serão afetados.`
+      `## ⚠️ Remover opção "${option.label}"?\nEsta ação não pode ser desfeita.`
     )
   );
   container.addActionRowComponents(
@@ -270,9 +310,7 @@ function buildOptionRemoveConfirmView({ guildId, option }) {
 
 function buildClosedPanelView() {
   const container = new ContainerBuilder();
-  container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent('✅ Painel de configuração fechado.')
-  );
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent('✅ Painel de configuração fechado.'));
   return {
     flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
     components: [container],

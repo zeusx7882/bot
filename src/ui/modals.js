@@ -3,6 +3,7 @@
 const { ModalBuilder, LabelBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const customId = require('./customId');
 const { LIMITS } = require('../domain/validation');
+const { MAX_CREDENTIAL_INPUT } = require('../domain/emailVerification');
 
 const SCOPE = 'cfg';
 
@@ -119,10 +120,54 @@ function buildOptionModal(guildId, { optionId = null, label, description, emoji 
   return modal;
 }
 
+function buildEmailOptionModal(guildId, config) {
+  return new ModalBuilder()
+    .setCustomId(customId.build(SCOPE, 'email_opt_submit', guildId))
+    .setTitle('Editar opção Verificar e-mail')
+    .addLabelComponents(
+      textInputLabel({
+        label: 'Título da opção',
+        customIdValue: 'label',
+        style: TextInputStyle.Short,
+        required: true,
+        value: config.email_option_label,
+        maxLength: LIMITS.optionLabel,
+      })
+    )
+    .addLabelComponents(
+      textInputLabel({
+        label: 'Descrição da opção',
+        customIdValue: 'description',
+        style: TextInputStyle.Short,
+        required: true,
+        value: config.email_option_description,
+        maxLength: LIMITS.optionDescription,
+      })
+    );
+}
+
+function buildEmailCredentialModal(guildId, sessionId, action = 'email_auth_submit') {
+  return new ModalBuilder()
+    .setCustomId(customId.build('ticket', action, guildId, sessionId))
+    .setTitle('Verificar e-mail (IMAP)')
+    .addLabelComponents(
+      textInputLabel({
+        label: 'Conta (email:senha ou email:senha:extra)',
+        customIdValue: 'account',
+        style: TextInputStyle.Paragraph,
+        required: true,
+        maxLength: MAX_CREDENTIAL_INPUT,
+        placeholder: 'usuario@example.test:senha-ficticia:campo-ignorado',
+      })
+    );
+}
+
 module.exports = {
   buildTitleModal,
   buildDescriptionModal,
   buildImageModal,
   buildDomainModal,
   buildOptionModal,
+  buildEmailOptionModal,
+  buildEmailCredentialModal,
 };
