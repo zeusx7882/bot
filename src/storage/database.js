@@ -42,6 +42,25 @@ function migrate(db) {
     "TEXT NOT NULL DEFAULT 'Abra um ticket de verificação de e-mail.'"
   );
   ensureColumn(db, 'guild_config', 'email_category_id', 'TEXT');
+  ensureColumn(
+    db,
+    'guild_config',
+    'email_connect_title',
+    "TEXT NOT NULL DEFAULT 'Conectado à caixa de correio com sucesso'"
+  );
+  ensureColumn(
+    db,
+    'guild_config',
+    'email_connect_message',
+    "TEXT NOT NULL DEFAULT 'A autenticação foi concluída. Use o botão **Verificar** para buscar o último e-mail da INBOX sob demanda.'"
+  );
+  ensureColumn(
+    db,
+    'guild_config',
+    'email_connect_tutorial',
+    "TEXT NOT NULL DEFAULT '1. Clique em **Verificar** para ler a mensagem mais recente (inclusive recebida antes da abertura).\\n2. Novos cliques trazem apenas novas mensagens por UID/UIDVALIDITY, sem duplicar.\\n3. Use **Mostrar conta para copiar** para visualizar e-mail/senha em resposta efêmera.\\n4. Clique em **Encerrar** para fechar este ticket com segurança.'"
+  );
+  ensureColumn(db, 'guild_config', 'normal_logs_channel_id', 'TEXT');
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS panel_options (
@@ -113,6 +132,47 @@ function migrate(db) {
 
   db.exec(
     'CREATE INDEX IF NOT EXISTS idx_email_ticket_state_channel ON email_ticket_state (guild_id, channel_id);'
+  );
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS ticket_closure_job (
+      ticket_id INTEGER PRIMARY KEY,
+      guild_id TEXT NOT NULL,
+      channel_id TEXT NOT NULL,
+      requested_by_user_id TEXT NOT NULL,
+      requested_at INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      attempts INTEGER NOT NULL DEFAULT 0,
+      last_error TEXT,
+      log_message_id TEXT,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS payment_link_state (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id TEXT NOT NULL,
+      channel_id TEXT NOT NULL,
+      message_id TEXT,
+      creator_user_id TEXT NOT NULL,
+      payment_link_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT,
+      amount_input TEXT NOT NULL,
+      amount_unit TEXT NOT NULL,
+      currency TEXT NOT NULL,
+      gateway_method TEXT NOT NULL,
+      status TEXT NOT NULL,
+      payment_url TEXT,
+      operation_interaction_id TEXT UNIQUE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
+  db.exec(
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_payment_link_unique ON payment_link_state (guild_id, payment_link_id);'
   );
 }
 

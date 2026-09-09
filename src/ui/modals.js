@@ -150,6 +150,36 @@ function buildEmailOptionModal(guildId, config, page) {
         value: config.email_option_description,
         maxLength: LIMITS.optionDescription,
       })
+    )
+    .addLabelComponents(
+      textInputLabel({
+        label: 'Título da mensagem no ticket',
+        customIdValue: 'connect_title',
+        style: TextInputStyle.Short,
+        required: true,
+        value: config.email_connect_title,
+        maxLength: LIMITS.emailConnectTitle,
+      })
+    )
+    .addLabelComponents(
+      textInputLabel({
+        label: 'Mensagem curta de conexão',
+        customIdValue: 'connect_message',
+        style: TextInputStyle.Short,
+        required: true,
+        value: config.email_connect_message,
+        maxLength: LIMITS.emailConnectMessage,
+      })
+    )
+    .addLabelComponents(
+      textInputLabel({
+        label: 'Mini tutorial (até 4 passos)',
+        customIdValue: 'connect_tutorial',
+        style: TextInputStyle.Paragraph,
+        required: true,
+        value: config.email_connect_tutorial,
+        maxLength: LIMITS.emailConnectTutorial,
+      })
     );
 }
 

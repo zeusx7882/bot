@@ -9,6 +9,14 @@ const CLOSE_TIMEOUT_MS = 30000;
 const VERIFY_COOLDOWN_MS = 5000;
 const MAX_CREDENTIAL_INPUT = 600;
 const MAX_EMAIL_BODY_CHARS = 3500;
+const DEFAULT_EMAIL_CONNECT_TITLE = 'Conectado à caixa de correio com sucesso';
+const DEFAULT_EMAIL_CONNECT_MESSAGE = 'A autenticação foi concluída. Use o botão **Verificar** para buscar o último e-mail da INBOX sob demanda.';
+const DEFAULT_EMAIL_CONNECT_TUTORIAL = [
+  '1. Clique em **Verificar** para ler a mensagem mais recente (inclusive recebida antes da abertura).',
+  '2. Novos cliques trazem apenas novas mensagens por UID/UIDVALIDITY, sem duplicar.',
+  '3. Use **Mostrar conta para copiar** para visualizar e-mail/senha em resposta efêmera.',
+  '4. Clique em **Encerrar** para fechar este ticket com segurança.',
+].join('\n');
 
 function buildEmailPanelOption(config) {
   if (!config.email_option_enabled) return null;
@@ -70,9 +78,12 @@ function sanitizeEmailText(text) {
 function extractHttpLinks(text) {
   const source = String(text || '');
   const links = [];
+  const seen = new Set();
   const regex = /https?:\/\/[^\s<>()"']+/gi;
   let match;
   while ((match = regex.exec(source)) && links.length < 5) {
+    if (seen.has(match[0])) continue;
+    seen.add(match[0]);
     links.push(match[0]);
   }
   return links;
@@ -91,6 +102,9 @@ module.exports = {
   VERIFY_COOLDOWN_MS,
   MAX_CREDENTIAL_INPUT,
   MAX_EMAIL_BODY_CHARS,
+  DEFAULT_EMAIL_CONNECT_TITLE,
+  DEFAULT_EMAIL_CONNECT_MESSAGE,
+  DEFAULT_EMAIL_CONNECT_TUTORIAL,
   buildEmailPanelOption,
   parseCredentialInput,
   enforceAllowedDomain,

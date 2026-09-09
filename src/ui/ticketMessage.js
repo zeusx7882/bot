@@ -11,7 +11,7 @@ const {
 } = require('discord.js');
 const customId = require('./customId');
 
-function buildTicketOpenedMessage({ authorId, supportRoleId, optionLabel, optionDescription }) {
+function buildTicketOpenedMessage({ guildId, authorId, supportRoleId, optionLabel, optionDescription }) {
   const container = new ContainerBuilder();
 
   container.addTextDisplayComponents(
@@ -29,6 +29,14 @@ function buildTicketOpenedMessage({ authorId, supportRoleId, optionLabel, option
       ]
         .filter(Boolean)
         .join('\n')
+    )
+  );
+  container.addActionRowComponents(
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(customId.build('ticket', 'normal_close', guildId))
+        .setLabel('Encerrar ticket')
+        .setStyle(ButtonStyle.Danger)
     )
   );
 
@@ -74,7 +82,7 @@ function buildEmailTicketOpenedMessage({ guildId, authorId, optionLabel, optionD
         .setStyle(ButtonStyle.Primary),
       new ButtonBuilder()
         .setCustomId(customId.build('ticket', 'email_copy', guildId))
-        .setLabel('Mostrar para copiar')
+        .setLabel('Mostrar conta para copiar')
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId(customId.build('ticket', 'email_close', guildId))
@@ -88,6 +96,24 @@ function buildEmailTicketOpenedMessage({ guildId, authorId, optionLabel, optionD
     components: [container],
     allowedMentions: { parse: [], users: [authorId] },
   };
+}
+
+function buildEmailConnectedMessage({ email, hiddenPasswordLabel = '••••••••', config }) {
+  const container = new ContainerBuilder();
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(
+      [
+        `## ✅ ${config.email_connect_title}`,
+        config.email_connect_message,
+        '',
+        `**E-mail conectado:** ${email}`,
+        `**Senha:** ${hiddenPasswordLabel} _(oculta no canal)_`,
+        '',
+        config.email_connect_tutorial,
+      ].join('\n')
+    )
+  );
+  return { flags: MessageFlags.IsComponentsV2, components: [container], allowedMentions: { parse: [] } };
 }
 
 function buildEmailResultMessage(result) {
@@ -161,6 +187,7 @@ function buildTicketErrorMessage(message) {
 module.exports = {
   buildTicketOpenedMessage,
   buildEmailTicketOpenedMessage,
+  buildEmailConnectedMessage,
   buildEmailResultMessage,
   buildInfoMessage,
   buildTicketCreatedConfirmation,

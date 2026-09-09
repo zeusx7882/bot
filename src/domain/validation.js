@@ -5,7 +5,11 @@ const LIMITS = {
   panelDescription: 4000,
   optionLabel: 100,
   optionDescription: 100,
+  emailConnectTitle: 120,
+  emailConnectMessage: 280,
+  emailConnectTutorial: 1200,
   domain: 500,
+  moneyInput: 32,
 };
 
 class ValidationError extends Error {
@@ -90,6 +94,21 @@ function validateDomain(value) {
   return validateHttpUrl(value, 'domínio', LIMITS.domain);
 }
 
+function validateEmailConnectTitle(value) {
+  const trimmed = requireNonEmptyString(value, 'título de conexão');
+  return validateLength(trimmed, LIMITS.emailConnectTitle, 'título de conexão');
+}
+
+function validateEmailConnectMessage(value) {
+  const trimmed = requireNonEmptyString(value, 'mensagem de conexão');
+  return validateLength(trimmed, LIMITS.emailConnectMessage, 'mensagem de conexão');
+}
+
+function validateEmailConnectTutorial(value) {
+  const trimmed = requireNonEmptyString(value, 'tutorial de conexão');
+  return validateLength(trimmed, LIMITS.emailConnectTutorial, 'tutorial de conexão');
+}
+
 function validateHttpUrl(value, fieldName, maxLength = 2048) {
   const trimmed = requireNonEmptyString(value, fieldName);
   validateLength(trimmed, maxLength, fieldName);
@@ -131,5 +150,8 @@ module.exports = {
   validateEmoji,
   validateImageUrl,
   validateDomain,
+  validateEmailConnectTitle,
+  validateEmailConnectMessage,
+  validateEmailConnectTutorial,
   validateHttpUrl,
 };

@@ -7,9 +7,11 @@ Bot de tickets em JavaScript (Node.js) com **Discord Components V2** e persistê
 - `/ticket_painel` para configurar painel por servidor (isolamento por guild).
 - Opções normais de ticket (até 25) com categoria/cargo de suporte.
 - Opção especial configurável **Verificar e-mail** (habilitar/desabilitar, editar título/descrição e categoria exclusiva).
-- Fluxo de verificação de e-mail via modal (`email:senha` ou `email:senha:extra`) sem criar canal antes do envio.
+- Fluxo de verificação de e-mail via modal (`email:senha` ou `email:senha:extra`) com autenticação inicial sem fetch automático.
 - Acesso IMAP TLS (Mailcow) com host/porta fixos via ambiente e allowlist de domínios.
-- Ticket de e-mail privado (autor + bot), botões **Verificar**, **Mostrar para copiar** e **Encerrar**.
+- Ticket de e-mail privado (autor + bot), botões **Verificar**, **Mostrar conta para copiar** e **Encerrar**.
+- Logs/transcripts HTML para tickets normais com canal configurável por guild e fechamento com confirmação.
+- Comando `/link_pagamento` (Sharpify) para administradores, com cartão público V2 e verificação de status sob demanda.
 - Fechamento automático: 30s após encerrar manualmente e 6 minutos sem atividade válida do autor.
 - Deadlines persistidas no SQLite para recuperar após reinício (sem estender prazo).
 
@@ -41,6 +43,13 @@ Preencha o `.env` com seus dados reais (token, IDs e IMAP).
 | `MAILCOW_IMAP_HOST` | sim para recurso e-mail | Host IMAP do operador |
 | `MAILCOW_IMAP_PORT` | não | Porta IMAPS (padrão 993) |
 | `MAILCOW_ALLOWED_DOMAINS` | sim para recurso e-mail | Domínios permitidos separados por vírgula |
+| `MESSAGE_CONTENT_INTENT` | não | `1` para habilitar captura de conteúdo em transcripts de tickets normais |
+| `SHARPIFY_BASE_URL` | sim para `/link_pagamento` | Base da API (ex.: `https://api.sharpify.com.br`) |
+| `SHARPIFY_CLIENT_ID` | sim para `/link_pagamento` | Credencial client id |
+| `SHARPIFY_CLIENT_SECRET` | sim para `/link_pagamento` | Credencial client secret |
+| `SHARPIFY_AMOUNT_UNIT` | sim para `/link_pagamento` | Unidade explícita: `major` ou `minor` |
+| `SHARPIFY_MAJOR_DECIMALS` | quando `major` | Casas decimais aceitas no input |
+| `SHARPIFY_CURRENCY` | sim para `/link_pagamento` | Moeda operacional configurada pelo operador |
 
 > O recurso de e-mail falha em modo seguro (fail-closed) se `MAILCOW_IMAP_HOST`/`MAILCOW_ALLOWED_DOMAINS` não estiverem configurados.
 
@@ -61,9 +70,9 @@ Preencha o `.env` com seus dados reais (token, IDs e IMAP).
 1. Usuário seleciona a opção no painel público.
 2. Bot abre modal para credenciais.
 3. Bot autentica no IMAP (TLS, timeout, domínio permitido) e só então cria o canal da categoria exclusiva.
-4. Publica no ticket o último e-mail da INBOX em texto sanitizado e links `http(s)` detectados.
-5. Botão **Verificar** busca mensagens novas por `UID`/`UIDVALIDITY`.
-6. Botão **Mostrar para copiar** retorna texto efêmero selecionável (sem clipboard automático).
+4. Ticket inicia com “Conectado à caixa de correio com sucesso” e mini tutorial configurável por guild.
+5. Primeiro botão **Verificar** busca o último e-mail atual da INBOX (inclusive pré-existente); cliques seguintes buscam novidades por `UID`/`UIDVALIDITY`.
+6. Botão **Mostrar conta para copiar** retorna e-mail/senha separados em resposta efêmera selecionável (sem clipboard automático).
 7. Botão **Encerrar** agenda exclusão do canal em 30 segundos.
 8. Sem atividade válida do autor por 6 minutos, encerra automaticamente.
 
@@ -113,3 +122,19 @@ npm test
 - [ ] **Encerrar** remove canal em 30s.
 - [ ] Inatividade de 6 minutos encerra ticket de e-mail.
 - [ ] Reinício do bot mantém deadlines remanescentes.
+## Tickets normais: fechamento, logs e transcripts
+
+- A mensagem inicial do ticket normal inclui botão **Encerrar ticket**.
+- Encerramento permitido para autor do ticket, equipe de suporte configurada ou administrador.
+- Canal de logs é configurável em **/ticket_painel → Tickets normais** (opcional).
+- Quando logs estão ativos, o bot arquiva transcript HTML estático antes de excluir o canal.
+- Tickets de e-mail ficam fora de logs/transcripts.
+- Sem `MESSAGE_CONTENT_INTENT=1` + intent habilitado no Developer Portal, transcripts com logs falham em modo claro (fail-closed).
+
+## `/link_pagamento` (Sharpify)
+
+- Comando guild-only e administrador por padrão.
+- Publica cartão Components V2 **não efêmero** no canal com status/método/valor.
+- Botão **Abrir pagamento** aparece apenas com URL `https` retornada pela API.
+- Botão **Verificar pagamento** consulta endpoint GET e atualiza o cartão; não marca pago por clique.
+- Por ambiguidade de unidade monetária em docs indisponíveis no ambiente, a configuração explícita de unidade/moeda é obrigatória (fail-closed).

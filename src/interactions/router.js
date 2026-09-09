@@ -3,8 +3,10 @@
 const customId = require('../ui/customId');
 const configHandlers = require('./configHandlers');
 const publicPanelHandlers = require('./publicPanelHandlers');
+const paymentHandlers = require('./paymentHandlers');
 const { logger } = require('../utils/logger');
 const { MessageFlags } = require('discord.js');
+const { TicketServiceError } = require('../services/ticketService');
 
 /**
  * Roteador global de interações. Usa exclusivamente o customId persistente
@@ -44,6 +46,18 @@ async function routeInteraction(interaction, context) {
         }
         if (interaction.isModalSubmit()) {
           return await publicPanelHandlers.handleModalSubmit(interaction, parsed, context);
+        }
+
+        if (parsed.scope === 'pay' && interaction.isButton()) {
+          try {
+            return await paymentHandlers.handleButton(interaction, parsed, context);
+          } catch (error) {
+            if (error instanceof TicketServiceError) {
+              await interaction.reply({ content: `❌ ${error.message}`, flags: MessageFlags.Ephemeral }).catch(() => {});
+              return;
+            }
+            throw error;
+          }
         }
       }
     }

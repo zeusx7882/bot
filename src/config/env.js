@@ -39,6 +39,23 @@ function readEnv(env = process.env) {
     mailcowImapPort: Number.isInteger(parsedPort) && parsedPort > 0 ? parsedPort : 993,
     mailcowAllowedDomains: parseAllowedDomains(env.MAILCOW_ALLOWED_DOMAINS || ''),
     mailcowImapAuthTimeoutMs: 12000,
+    sharpifyBaseUrl: env.SHARPIFY_BASE_URL && env.SHARPIFY_BASE_URL.trim() ? env.SHARPIFY_BASE_URL.trim() : '',
+    sharpifyClientId: env.SHARPIFY_CLIENT_ID && env.SHARPIFY_CLIENT_ID.trim() ? env.SHARPIFY_CLIENT_ID.trim() : '',
+    sharpifyClientSecret:
+      env.SHARPIFY_CLIENT_SECRET && env.SHARPIFY_CLIENT_SECRET.trim() ? env.SHARPIFY_CLIENT_SECRET.trim() : '',
+    sharpifyAmountUnit: env.SHARPIFY_AMOUNT_UNIT && env.SHARPIFY_AMOUNT_UNIT.trim()
+      ? env.SHARPIFY_AMOUNT_UNIT.trim().toLowerCase()
+      : '',
+    sharpifyCurrency: env.SHARPIFY_CURRENCY && env.SHARPIFY_CURRENCY.trim() ? env.SHARPIFY_CURRENCY.trim() : '',
+    sharpifyMajorDecimals: Number.parseInt(env.SHARPIFY_MAJOR_DECIMALS || '2', 10),
+    sharpifyTimeoutMs: Number.parseInt(env.SHARPIFY_TIMEOUT_MS || '10000', 10),
+    sharpifyEnabled: Boolean(
+      env.SHARPIFY_BASE_URL &&
+        env.SHARPIFY_CLIENT_ID &&
+        env.SHARPIFY_CLIENT_SECRET &&
+        env.SHARPIFY_AMOUNT_UNIT &&
+        env.SHARPIFY_CURRENCY
+    ),
   };
 }
 
