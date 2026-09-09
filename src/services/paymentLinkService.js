@@ -1,7 +1,7 @@
 'use strict';
 
 const { ValidationError } = require('../domain/validation');
-const { parseAmountInput, assertGatewayMethod, extractPaymentUrl } = require('../domain/payment');
+const { parseAmountInput, assertGatewayMethod, extractPaymentUrl, extractPaymentCode } = require('../domain/payment');
 const { buildPaymentCard } = require('../ui/paymentMessage');
 
 class PaymentLinkService {
@@ -55,6 +55,7 @@ class PaymentLinkService {
       gatewayMethod,
       status: data.status || 'PENDING',
       paymentUrl,
+      paymentCode: extractPaymentCode(data),
       operationInteractionId: interactionId,
     });
     const sent = await channel.send(buildPaymentCard({ guildId, record, paymentData: data }));
@@ -77,7 +78,11 @@ class PaymentLinkService {
     const response = await this.sharpifyService.getPaymentLink(record.payment_link_id);
     const data = response?.data || {};
     const paymentUrl = extractPaymentUrl(data);
-    const updated = this.paymentLinkRepository.updateStatusAndUrl(record.id, data.status || record.status, paymentUrl);
+    const updated = this.paymentLinkRepository.updateStatusAndFields(record.id, {
+      status: data.status || record.status,
+      paymentUrl,
+      paymentCode: extractPaymentCode(data) || record.payment_code,
+    });
     return { record: updated, paymentData: data };
   }
 }

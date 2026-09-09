@@ -9,6 +9,8 @@ const { TicketRepository } = require('./storage/ticketRepository');
 const { EmailTicketRepository } = require('./storage/emailTicketRepository');
 const { TicketClosureJobRepository } = require('./storage/ticketClosureJobRepository');
 const { PaymentLinkRepository } = require('./storage/paymentLinkRepository');
+const { EmailResultMessageRepository } = require('./storage/emailResultMessageRepository');
+const { NormalTicketAlertRepository } = require('./storage/normalTicketAlertRepository');
 const { ConfigService } = require('./services/configService');
 const { TicketService } = require('./services/ticketService');
 const { MailcowImapService } = require('./services/mailcowImapService');
@@ -16,6 +18,7 @@ const { EmailSessionService } = require('./services/emailSessionService');
 const { EmailTicketLifecycleService } = require('./services/emailTicketLifecycleService');
 const { TranscriptService } = require('./services/transcriptService');
 const { NormalTicketClosureService } = require('./services/normalTicketClosureService');
+const { NormalTicketAlertService } = require('./services/normalTicketAlertService');
 const { SharpifyService } = require('./services/sharpifyService');
 const { PaymentLinkService } = require('./services/paymentLinkService');
 const ticketPainelCommand = require('./commands/ticketPainel');
@@ -31,6 +34,8 @@ function buildContext(env) {
   const emailTicketRepository = new EmailTicketRepository(db);
   const ticketClosureJobRepository = new TicketClosureJobRepository(db);
   const paymentLinkRepository = new PaymentLinkRepository(db);
+  const emailResultMessageRepository = new EmailResultMessageRepository(db);
+  const normalTicketAlertRepository = new NormalTicketAlertRepository(db);
 
   const configService = new ConfigService({ guildConfigRepository, panelOptionRepository });
   const ticketService = new TicketService({
@@ -51,6 +56,7 @@ function buildContext(env) {
   const emailTicketLifecycleService = new EmailTicketLifecycleService({
     ticketRepository,
     emailTicketRepository,
+    emailResultMessageRepository,
     sessionService: emailSessionService,
   });
   const transcriptService = new TranscriptService();
@@ -59,6 +65,9 @@ function buildContext(env) {
     guildConfigRepository,
     ticketClosureJobRepository,
     transcriptService,
+  });
+  const normalTicketAlertService = new NormalTicketAlertService({
+    normalTicketAlertRepository,
   });
 
   const sharpifyService = new SharpifyService({
@@ -83,10 +92,13 @@ function buildContext(env) {
     ticketService,
     ticketRepository,
     emailTicketRepository,
+    emailResultMessageRepository,
     mailcowImapService,
     emailSessionService,
     emailTicketLifecycleService,
     normalTicketClosureService,
+    normalTicketAlertRepository,
+    normalTicketAlertService,
     paymentLinkService,
     paymentLinkRepository,
     commands,
@@ -142,8 +154,12 @@ async function main() {
   client.on(Events.ChannelDelete, (channel) => {
     if (!channel.guild) return;
     const ticket = context.ticketRepository.findByChannel(channel.guild.id, channel.id);
-    if (!ticket || ticket.ticket_type !== 'email') return;
-    context.emailTicketLifecycleService.clearTicket(ticket.id);
+    if (!ticket) return;
+    if (ticket.ticket_type === 'email') {
+      context.emailTicketLifecycleService.clearTicket(ticket.id);
+    } else {
+      context.normalTicketAlertService.clearTicket(ticket.id);
+    }
     context.ticketRepository.markClosed(ticket.id);
   });
 

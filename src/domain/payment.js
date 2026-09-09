@@ -53,11 +53,18 @@ function extractPaymentUrl(data) {
   if (typeof candidate !== 'string' || !candidate.trim()) return null;
   try {
     const parsed = new URL(candidate);
-    if (parsed.protocol !== 'https:') return null;
+    if (parsed.protocol !== 'https:' || parsed.username || parsed.password || !parsed.hostname) return null;
     return parsed.toString();
   } catch {
     return null;
   }
 }
 
-module.exports = { ALLOWED_METHODS, parseAmountInput, assertGatewayMethod, extractPaymentUrl };
+function extractPaymentCode(data) {
+  const candidate = data?.payment?.gateway?.data?.code;
+  if (candidate === null || candidate === undefined) return null;
+  const value = String(candidate);
+  return value.length > 0 ? value : null;
+}
+
+module.exports = { ALLOWED_METHODS, parseAmountInput, assertGatewayMethod, extractPaymentUrl, extractPaymentCode };

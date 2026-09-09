@@ -12,6 +12,8 @@ const customId = require('./customId');
 
 function buildPaymentCard({ guildId, record, paymentData }) {
   const container = new ContainerBuilder();
+  const paymentCode = paymentData?.payment?.gateway?.data?.code ?? record.payment_code;
+  const paymentUrl = record.payment_url || null;
   const lines = [
     '## 💳 Cobrança Sharpify',
     `**Nome:** ${record.name}`,
@@ -28,8 +30,8 @@ function buildPaymentCard({ guildId, record, paymentData }) {
   if (paymentData?.payment?.gateway?.data?.hasQrCode) {
     lines.push('**QR disponível:** sim');
   }
-  if (paymentData?.payment?.gateway?.data?.code) {
-    lines.push(`**Código:** ${String(paymentData.payment.gateway.data.code).slice(0, 500)}`);
+  if (paymentCode) {
+    lines.push(`**Código:** ${String(paymentCode).slice(0, 500)}`);
   }
   container.addTextDisplayComponents(new TextDisplayBuilder().setContent(lines.join('\n')));
 
@@ -38,9 +40,22 @@ function buildPaymentCard({ guildId, record, paymentData }) {
     .setLabel('Verificar pagamento')
     .setStyle(ButtonStyle.Primary);
   const row = new ActionRowBuilder().addComponents(verify);
-  const link = record.payment_url;
-  if (link) {
-    row.addComponents(new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Abrir pagamento').setURL(link));
+  if (paymentCode) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(customId.build('pay', 'copy_code', guildId, record.id))
+        .setLabel('Copiar código')
+        .setStyle(ButtonStyle.Secondary)
+    );
+  }
+  if (paymentUrl) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(customId.build('pay', 'copy_link', guildId, record.id))
+        .setLabel('Copiar link')
+        .setStyle(ButtonStyle.Secondary)
+    );
+    row.addComponents(new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Abrir pagamento').setURL(paymentUrl));
   }
   container.addActionRowComponents(row);
 

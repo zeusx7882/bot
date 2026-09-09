@@ -18,6 +18,7 @@ const {
   buildInfoMessage,
 } = require('../ui/ticketMessage');
 const { buildEmailCredentialModal } = require('../ui/modals');
+const { buildPlainCopyReply } = require('../utils/plainReplies');
 const { logger } = require('../utils/logger');
 
 async function handleOpenSelect(interaction, parsed, context) {
@@ -134,15 +135,20 @@ async function handleButton(interaction, parsed, context) {
   }
 
   const { action } = parsed;
-  if (!['email_check', 'email_copy', 'email_close', 'normal_close', 'normal_close_confirm'].includes(action)) return;
+  if (!['email_check', 'email_copy', 'email_close', 'email_result_delete', 'normal_close', 'normal_close_confirm', 'normal_notify'].includes(action)) return;
 
   try {
-    if (action === 'normal_close' || action === 'normal_close_confirm') {
-      await handleNormalClose(interaction, parsed, context, action === 'normal_close_confirm');
+    if (action === 'normal_close' || action === 'normal_close_confirm' || action === 'normal_notify') {
+      await handleNormalTicketButton(interaction, parsed, context, action);
       return;
     }
 
     const ticketAndState = requireEmailTicketAccess(interaction, context);
+
+    if (action === 'email_result_delete') {
+      await handleEmailResultDelete(interaction, context, ticketAndState);
+      return;
+    }
 
     if (action === 'email_close') {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -159,22 +165,19 @@ async function handleButton(interaction, parsed, context) {
     context.emailTicketLifecycleService.touchOwnerActivity(ticketAndState.ticket.id);
 
     if (action === 'email_copy') {
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const creds = context.emailSessionService.getCredentials(ticketAndState.ticket.id);
       if (!creds) {
-        await interaction.editReply(
+        await interaction.reply(
           buildTicketErrorMessage('Reautentique para copiar: use o botão Verificar e envie novamente as credenciais no modal.')
         );
         return;
       }
-      const text = [
-        'Conta disponível para cópia (resposta efêmera):',
-        `E-mail: ${creds.email}`,
-        `Senha: ${creds.password}`,
-        '',
-        '_O Discord processa esta mensagem. Não há clipboard nativo nem garantia de sigilo pela plataforma._',
-      ].join('\n');
-      await interaction.editReply(buildInfoMessage(text, true));
+      await interaction.reply(
+        buildPlainCopyReply(`${creds.email}:${creds.password}`, {
+          fileName: 'conta-email.txt',
+          overflowMessage: 'A conta ficou grande demais para o chat; abra o arquivo efêmero e copie o texto bruto.',
+        })
+      );
       return;
     }
 
@@ -206,7 +209,14 @@ async function handleButton(interaction, parsed, context) {
     );
 
     if (result.hasNew) {
-      await interaction.channel.send(buildEmailResultMessage(result));
+      const sent = await interaction.channel.send(buildEmailResultMessage({ guildId: interaction.guildId, result }));
+      context.emailResultMessageRepository.track({
+        ticketId: ticketAndState.ticket.id,
+        guildId: interaction.guildId,
+        channelId: interaction.channelId,
+        messageId: sent.id,
+        ownerUserId: interaction.user.id,
+      });
       await interaction.editReply(buildTicketErrorMessage('Novo e-mail processado e publicado no ticket.'));
     } else {
       await interaction.editReply(buildTicketErrorMessage('Nenhuma nova mensagem desde a última verificação.'));
@@ -246,27 +256,46 @@ async function respondInteractionError(interaction, error) {
 
 module.exports = { handleOpenSelect, handleButton, handleModalSubmit, requireEmailTicketAccess };
 
-async function handleNormalClose(interaction, parsed, context, confirmed) {
+async function handleNormalTicketButton(interaction, parsed, context, action) {
   if (!interaction.inGuild() || interaction.guildId !== parsed.guildId) {
     await interaction.reply({ content: 'Este botão não pertence a este servidor.', flags: MessageFlags.Ephemeral });
     return;
   }
-  const ticket = context.ticketRepository.findByChannel(interaction.guildId, interaction.channelId);
-  if (!ticket || ticket.ticket_type !== 'normal') {
-    throw new TicketServiceError('Este canal não é um ticket normal válido.');
-  }
-  if (ticket.status === 'closing' || ticket.status === 'closed') {
-    throw new TicketServiceError('Este ticket já está em encerramento.');
+  const current = await getNormalTicketContext(interaction, context);
+  const { ticket, config, member, isAdmin, isSupport } = current;
+
+  if (action === 'normal_notify') {
+    if (!isAdmin && !isSupport) {
+      throw new TicketServiceError('Apenas equipe de suporte ou administrador pode avisar o autor deste ticket.');
+    }
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const result = await context.normalTicketAlertService.notifyAuthor({
+      guild: interaction.guild,
+      channel: interaction.channel,
+      ticket,
+    });
+    await interaction.editReply({
+      content:
+        result.delivery === 'dm'
+          ? '✅ DM enviada ao autor do ticket.'
+          : '⚠️ A DM falhou; publiquei um aviso no próprio ticket mencionando apenas o autor.',
+      flags: MessageFlags.Ephemeral,
+      allowedMentions: { parse: [] },
+    });
+    return;
   }
 
-  const config = context.configService.getOrCreate(interaction.guildId).config;
-  const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
-  if (!member) throw new TicketServiceError('Não foi possível validar sua permissão neste servidor.');
-  const isAdmin = Boolean(member.permissions?.has?.(PermissionFlagsBits.Administrator));
-  const isAuthor = ticket.user_id === interaction.user.id;
-  const isSupport = config.support_role_id ? member.roles?.cache?.has?.(config.support_role_id) : false;
-  if (!isAdmin && !isAuthor && !isSupport) {
+  if (!isAdmin && !current.isAuthor && !isSupport) {
     throw new TicketServiceError('Apenas autor, equipe de suporte ou administrador pode encerrar este ticket.');
+  }
+
+  if (action !== 'normal_close' && action !== 'normal_close_confirm') {
+    return;
+  }
+
+  const confirmed = action === 'normal_close_confirm';
+  if (!ticket || ticket.ticket_type !== 'normal') {
+    throw new TicketServiceError('Este canal não é um ticket normal válido.');
   }
 
   if (!confirmed) {
@@ -305,4 +334,77 @@ async function handleNormalClose(interaction, parsed, context, confirmed) {
     interaction,
   });
   await interaction.editReply(buildTicketErrorMessage('Encerramento concluído.'));
+}
+
+async function getNormalTicketContext(interaction, context) {
+  const ticket = context.ticketRepository.findByChannel(interaction.guildId, interaction.channelId);
+  if (!ticket || ticket.ticket_type !== 'normal') {
+    throw new TicketServiceError('Este canal não é um ticket normal válido.');
+  }
+  if (ticket.status === 'closing' || ticket.status === 'closed') {
+    throw new TicketServiceError('Este ticket já está em encerramento.');
+  }
+
+  const config = context.configService.getOrCreate(interaction.guildId).config;
+  const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+  if (!member) throw new TicketServiceError('Não foi possível validar sua permissão neste servidor.');
+
+  return {
+    ticket,
+    config,
+    member,
+    isAdmin: Boolean(member.permissions?.has?.(PermissionFlagsBits.Administrator)),
+    isAuthor: ticket.user_id === interaction.user.id,
+    isSupport: config.support_role_id ? member.roles?.cache?.has?.(config.support_role_id) : false,
+  };
+}
+
+async function handleEmailResultDelete(interaction, context, ticketAndState) {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const tracked = context.emailResultMessageRepository.getByMessage(
+    interaction.guildId,
+    interaction.channelId,
+    interaction.message.id
+  );
+  if (
+    !tracked ||
+    tracked.ticket_id !== ticketAndState.ticket.id ||
+    tracked.owner_user_id !== interaction.user.id
+  ) {
+    await interaction.editReply(buildTicketErrorMessage('Esta mensagem não pode ser apagada por este botão.'));
+    return;
+  }
+
+  try {
+    await interaction.message.delete();
+    context.emailResultMessageRepository.deleteByMessage(interaction.guildId, interaction.channelId, interaction.message.id);
+    await interaction.editReply({
+      content: '✅ Mensagem de resultado apagada.',
+      flags: MessageFlags.Ephemeral,
+      allowedMentions: { parse: [] },
+    });
+  } catch (error) {
+    if (isUnknownMessageError(error)) {
+      context.emailResultMessageRepository.deleteByMessage(interaction.guildId, interaction.channelId, interaction.message.id);
+      await interaction.editReply({
+        content: 'ℹ️ Esta mensagem já havia sido apagada.',
+        flags: MessageFlags.Ephemeral,
+        allowedMentions: { parse: [] },
+      });
+      return;
+    }
+    if (isMissingPermissionsError(error)) {
+      await interaction.editReply(buildTicketErrorMessage('Não tenho permissão para apagar esta mensagem neste canal.'));
+      return;
+    }
+    throw error;
+  }
+}
+
+function isUnknownMessageError(error) {
+  return Number(error?.code) === 10008;
+}
+
+function isMissingPermissionsError(error) {
+  return Number(error?.code) === 50013;
 }

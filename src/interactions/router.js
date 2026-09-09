@@ -47,17 +47,21 @@ async function routeInteraction(interaction, context) {
         if (interaction.isModalSubmit()) {
           return await publicPanelHandlers.handleModalSubmit(interaction, parsed, context);
         }
+      }
 
-        if (parsed.scope === 'pay' && interaction.isButton()) {
-          try {
-            return await paymentHandlers.handleButton(interaction, parsed, context);
-          } catch (error) {
-            if (error instanceof TicketServiceError) {
+      if (parsed.scope === 'pay' && interaction.isButton()) {
+        try {
+          return await paymentHandlers.handleButton(interaction, parsed, context);
+        } catch (error) {
+          if (error instanceof TicketServiceError) {
+            if (interaction.deferred || interaction.replied) {
+              await interaction.editReply({ content: `❌ ${error.message}`, flags: MessageFlags.Ephemeral }).catch(() => {});
+            } else {
               await interaction.reply({ content: `❌ ${error.message}`, flags: MessageFlags.Ephemeral }).catch(() => {});
-              return;
             }
-            throw error;
+            return;
           }
+          throw error;
         }
       }
     }

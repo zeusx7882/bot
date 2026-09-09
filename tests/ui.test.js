@@ -12,7 +12,8 @@ const {
   countSerializedComponents,
 } = require('../src/ui/configPanel');
 const { buildPublicPanel } = require('../src/ui/publicPanel');
-const { buildTicketOpenedMessage } = require('../src/ui/ticketMessage');
+const { buildTicketOpenedMessage, buildEmailResultMessage } = require('../src/ui/ticketMessage');
+const { buildPaymentCard } = require('../src/ui/paymentMessage');
 
 const sampleConfig = {
   panel_title: 'Central de Atendimento',
@@ -188,6 +189,50 @@ test('buildTicketOpenedMessage: allowedMentions explícito, sem @everyone/@here'
   assert.match(text, /<@&role1>/);
   assert.doesNotMatch(text, /@everyone/);
   assert.doesNotMatch(text, /@here/);
+  assert.ok(findButtonByCustomId(payload.components[0].toJSON(), 'tp:ticket:normal_notify:guild1'));
+});
+
+test('buildEmailResultMessage adiciona botão próprio para apagar somente resultados', () => {
+  const payload = buildEmailResultMessage({
+    guildId: 'guild1',
+    result: {
+      message: {
+        from: 'autor@example.test',
+        subject: 'Assunto',
+        internalDate: '2026-01-01T00:00:00.000Z',
+        text: 'Olá',
+        truncated: false,
+        links: [],
+      },
+    },
+  });
+
+  const json = payload.components[0].toJSON();
+  assert.ok(findButtonByCustomId(json, 'tp:ticket:email_result_delete:guild1'));
+});
+
+test('buildPaymentCard mostra botões de copiar código/link sem remover abrir/verificar', () => {
+  const payload = buildPaymentCard({
+    guildId: 'guild1',
+    record: {
+      id: 7,
+      name: 'Cobrança',
+      description: null,
+      amount_input: '10.00',
+      amount_unit: 'major',
+      currency: 'BRL',
+      gateway_method: 'PIX',
+      status: 'PENDING',
+      payment_link_id: 'plink_1',
+      payment_url: 'https://pay.example/abc',
+      payment_code: '000201010212',
+    },
+  });
+
+  const json = payload.components[0].toJSON();
+  assert.ok(findButtonByCustomId(json, 'tp:pay:verify:guild1:7'));
+  assert.ok(findButtonByCustomId(json, 'tp:pay:copy_code:guild1:7'));
+  assert.ok(findButtonByCustomId(json, 'tp:pay:copy_link:guild1:7'));
 });
 
 function findButtonByCustomId(component, customId) {
