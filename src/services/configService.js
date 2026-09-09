@@ -65,6 +65,10 @@ class ConfigService {
     return this.guildConfigRepository.setPublishChannel(guildId, channelId);
   }
 
+  setNormalLogsChannel(guildId, channelId) {
+    return this.guildConfigRepository.setNormalLogsChannel(guildId, channelId);
+  }
+
   setPublishedMessage(guildId, channelId, messageId) {
     return this.guildConfigRepository.setPublishedMessage(guildId, channelId, messageId);
   }
@@ -108,6 +112,17 @@ class ConfigService {
     this.guildConfigRepository.setEmailOptionLabel(guildId, nextLabel);
     this.guildConfigRepository.setEmailOptionDescription(guildId, nextDescription);
     return this.guildConfigRepository.get(guildId);
+  }
+
+  updateEmailConnectCopy(guildId, { title, message, tutorial }) {
+    const nextTitle = validation.validateEmailConnectTitle(title);
+    const nextMessage = validation.validateEmailConnectMessage(message);
+    const nextTutorial = validation.validateEmailConnectTutorial(tutorial);
+    return this.guildConfigRepository.setEmailConnectCopy(guildId, {
+      title: nextTitle,
+      message: nextMessage,
+      tutorial: nextTutorial,
+    });
   }
 
   setEmailOptionEnabled(guildId, enabled) {

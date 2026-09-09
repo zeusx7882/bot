@@ -28,6 +28,10 @@ const sampleConfig = {
   email_option_label: 'Verificar e-mail',
   email_option_description: 'Descrição e-mail',
   email_category_id: null,
+  email_connect_title: 'Conectado',
+  email_connect_message: 'Mensagem',
+  email_connect_tutorial: 'Tutorial',
+  normal_logs_channel_id: null,
 };
 
 const sampleOptions = [{ id: 'opt-1', label: 'Suporte', description: 'Ajuda geral', emoji: '🎫' }];
@@ -168,6 +172,7 @@ test('buildPublicPanel: título/descrição/select, sem content/embeds, até 25 
 
 test('buildTicketOpenedMessage: allowedMentions explícito, sem @everyone/@here', () => {
   const payload = buildTicketOpenedMessage({
+    guildId: 'guild1',
     authorId: 'user1',
     supportRoleId: 'role1',
     optionLabel: 'Suporte',

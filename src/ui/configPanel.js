@@ -73,6 +73,8 @@ function pageFromAction(action, fallback = CONFIG_PAGE_IDS.APPEARANCE) {
     opt_remove: CONFIG_PAGE_IDS.NORMALS,
     category: CONFIG_PAGE_IDS.NORMALS,
     role: CONFIG_PAGE_IDS.NORMALS,
+    normal_logs_channel: CONFIG_PAGE_IDS.NORMALS,
+    normal_logs_remove: CONFIG_PAGE_IDS.NORMALS,
     back: CONFIG_PAGE_IDS.NORMALS,
     email_opt: CONFIG_PAGE_IDS.EMAIL,
     email_opt_submit: CONFIG_PAGE_IDS.EMAIL,
@@ -239,6 +241,29 @@ function addNormalTicketsPage(container, guildId, config, options, page) {
     .setPlaceholder('Cargo da equipe para tickets normais');
   if (config.support_role_id) roleSelect.setDefaultRoles(config.support_role_id);
   container.addActionRowComponents(new ActionRowBuilder().addComponents(roleSelect));
+
+  container.addSeparatorComponents(new SeparatorBuilder());
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(
+      `**Canal de logs/transcripts (opcional):** ${config.normal_logs_channel_id ? `<#${config.normal_logs_channel_id}>` : '_Desabilitado_'}`
+    )
+  );
+  const logsChannelSelect = new ChannelSelectMenuBuilder()
+    .setCustomId(customId.build(SCOPE, 'normal_logs_channel', guildId, page))
+    .setPlaceholder('Selecione um canal de logs para tickets normais')
+    .addChannelTypes(ChannelType.GuildText);
+  if (config.normal_logs_channel_id) logsChannelSelect.setDefaultChannels(config.normal_logs_channel_id);
+  container.addActionRowComponents(new ActionRowBuilder().addComponents(logsChannelSelect));
+  if (config.normal_logs_channel_id) {
+    container.addActionRowComponents(
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(customId.build(SCOPE, 'normal_logs_remove', guildId, page))
+          .setLabel('Remover canal de logs')
+          .setStyle(ButtonStyle.Secondary)
+      )
+    );
+  }
 }
 
 function addEmailPage(container, guildId, config, page) {
@@ -252,13 +277,16 @@ function addEmailPage(container, guildId, config, page) {
             `**Título:** ${truncate(config.email_option_label, 100)}`,
             `**Descrição:** ${truncate(config.email_option_description, 120)}`,
             `**Categoria exclusiva:** ${config.email_category_id ? `<#${config.email_category_id}>` : '_Não configurada_'}`,
+            `**Título conexão:** ${truncate(config.email_connect_title || '_Não configurado_', 120)}`,
+            `**Mensagem conexão:** ${truncate(config.email_connect_message || '_Não configurada_', 180)}`,
+            `**Mini tutorial:** ${truncate(config.email_connect_tutorial || '_Não configurado_', 220)}`,
           ].join('\n')
         )
       )
       .setButtonAccessory(
         new ButtonBuilder()
           .setCustomId(customId.build(SCOPE, 'email_opt', guildId, page))
-          .setLabel('Editar título/descrição')
+          .setLabel('Editar opção/tutorial')
           .setStyle(ButtonStyle.Secondary)
       )
   );

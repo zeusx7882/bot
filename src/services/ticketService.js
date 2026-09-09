@@ -75,12 +75,29 @@ class TicketService {
 
       await channel.send(
         buildTicketOpenedMessage({
+          guildId: guild.id,
           authorId: member.id,
           supportRoleId: supportRole.id,
           optionLabel: option.label,
           optionDescription: option.description,
         })
       );
+
+      if (config.normal_logs_channel_id) {
+        const logsChannel = await guild.channels.fetch(config.normal_logs_channel_id).catch(() => null);
+        if (logsChannel?.isTextBased()) {
+          await logsChannel.send({
+            content: [
+              '🆕 Ticket normal aberto',
+              `Autor: <@${member.id}>`,
+              `Canal: <#${channel.id}>`,
+              `Opção: ${option.label}`,
+              `Horário: ${new Date().toISOString()}`,
+            ].join('\n'),
+            allowedMentions: { parse: [] },
+          }).catch(() => {});
+        }
+      }
 
       const opened = this.ticketRepository.markOpen(ticket.id, channel.id);
       return { channel, ticket: opened };

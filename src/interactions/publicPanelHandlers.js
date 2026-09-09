@@ -1,6 +1,6 @@
 'use strict';
 
-const { MessageFlags } = require('discord.js');
+const { MessageFlags, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const {
   EMAIL_OPTION_ID,
   INACTIVITY_TIMEOUT_MS,
@@ -13,6 +13,7 @@ const { AlreadyHasTicketError, TicketServiceError } = require('../services/ticke
 const {
   buildTicketCreatedConfirmation,
   buildTicketErrorMessage,
+  buildEmailConnectedMessage,
   buildEmailResultMessage,
   buildInfoMessage,
 } = require('../ui/ticketMessage');
@@ -88,7 +89,7 @@ async function handleModalSubmit(interaction, parsed, context) {
 
     if (action === 'email_auth_submit') {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-      const initialResult = await context.mailcowImapService.fetchLatest({
+      await context.mailcowImapService.authenticate({
         email: credentials.email,
         password: credentials.password,
       });
@@ -105,14 +106,13 @@ async function handleModalSubmit(interaction, parsed, context) {
 
       context.emailTicketLifecycleService.registerEmailTicketOpen(created.ticket);
       context.emailSessionService.setCredentials(created.ticket.id, credentials);
-      context.emailTicketRepository.setMailProgress(
-        created.ticket.id,
-        initialResult.uidValidity,
-        initialResult.newestUid,
-        Date.now()
-      );
 
-      await created.channel.send(buildEmailResultMessage(initialResult));
+      await created.channel.send(
+        buildEmailConnectedMessage({
+          email: credentials.email,
+          config,
+        })
+      );
       await interaction.editReply(buildTicketCreatedConfirmation(created.channel.id));
       return;
     }
@@ -134,9 +134,14 @@ async function handleButton(interaction, parsed, context) {
   }
 
   const { action } = parsed;
-  if (!['email_check', 'email_copy', 'email_close'].includes(action)) return;
+  if (!['email_check', 'email_copy', 'email_close', 'normal_close', 'normal_close_confirm'].includes(action)) return;
 
   try {
+    if (action === 'normal_close' || action === 'normal_close_confirm') {
+      await handleNormalClose(interaction, parsed, context, action === 'normal_close_confirm');
+      return;
+    }
+
     const ticketAndState = requireEmailTicketAccess(interaction, context);
 
     if (action === 'email_close') {
@@ -162,13 +167,13 @@ async function handleButton(interaction, parsed, context) {
         );
         return;
       }
-      const latest = await context.mailcowImapService.fetchLatest({
-        email: creds.email,
-        password: creds.password,
-        previousUidValidity: ticketAndState.state.uid_validity,
-        previousUid: ticketAndState.state.last_seen_uid,
-      });
-      const text = latest.message ? latest.message.text : 'Sem e-mail disponível para cópia.';
+      const text = [
+        'Conta disponível para cópia (resposta efêmera):',
+        `E-mail: ${creds.email}`,
+        `Senha: ${creds.password}`,
+        '',
+        '_O Discord processa esta mensagem. Não há clipboard nativo nem garantia de sigilo pela plataforma._',
+      ].join('\n');
       await interaction.editReply(buildInfoMessage(text, true));
       return;
     }
@@ -240,3 +245,64 @@ async function respondInteractionError(interaction, error) {
 }
 
 module.exports = { handleOpenSelect, handleButton, handleModalSubmit, requireEmailTicketAccess };
+
+async function handleNormalClose(interaction, parsed, context, confirmed) {
+  if (!interaction.inGuild() || interaction.guildId !== parsed.guildId) {
+    await interaction.reply({ content: 'Este botão não pertence a este servidor.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+  const ticket = context.ticketRepository.findByChannel(interaction.guildId, interaction.channelId);
+  if (!ticket || ticket.ticket_type !== 'normal') {
+    throw new TicketServiceError('Este canal não é um ticket normal válido.');
+  }
+  if (ticket.status === 'closing' || ticket.status === 'closed') {
+    throw new TicketServiceError('Este ticket já está em encerramento.');
+  }
+
+  const config = context.configService.getOrCreate(interaction.guildId).config;
+  const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+  if (!member) throw new TicketServiceError('Não foi possível validar sua permissão neste servidor.');
+  const isAdmin = Boolean(member.permissions?.has?.(PermissionFlagsBits.Administrator));
+  const isAuthor = ticket.user_id === interaction.user.id;
+  const isSupport = config.support_role_id ? member.roles?.cache?.has?.(config.support_role_id) : false;
+  if (!isAdmin && !isAuthor && !isSupport) {
+    throw new TicketServiceError('Apenas autor, equipe de suporte ou administrador pode encerrar este ticket.');
+  }
+
+  if (!confirmed) {
+    await interaction.reply(
+      buildInfoMessage(
+        [
+          'Confirma encerrar este ticket normal?',
+          config.normal_logs_channel_id
+            ? 'O transcript HTML será enviado ao canal de logs configurado antes da exclusão.'
+            : '⚠️ Logs/transcript estão desabilitados para este servidor; o canal será excluído sem arquivamento.',
+        ].join('\n'),
+        true
+      )
+    );
+    await interaction.followUp({
+      content: 'Clique para confirmar o encerramento.',
+      flags: MessageFlags.Ephemeral,
+      components: [
+        new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`tp:ticket:normal_close_confirm:${interaction.guildId}`)
+            .setLabel('Confirmar encerramento')
+            .setStyle(ButtonStyle.Danger)
+        ),
+      ],
+      allowedMentions: { parse: [] },
+    });
+    return;
+  }
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  await context.normalTicketClosureService.closeTicket({
+    guildId: interaction.guildId,
+    channelId: interaction.channelId,
+    requestedByUserId: interaction.user.id,
+    interaction,
+  });
+  await interaction.editReply(buildTicketErrorMessage('Encerramento concluído.'));
+}

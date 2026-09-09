@@ -27,6 +27,32 @@ class MailcowImapService {
     }
   }
 
+  async authenticate({ email, password }) {
+    this.assertConfigured();
+    enforceAllowedDomain(email, this.allowedDomains);
+    const client = new ImapFlow({
+      host: this.host,
+      port: this.port,
+      secure: true,
+      auth: { user: email, pass: password },
+      logger: false,
+      tls: { rejectUnauthorized: true },
+    });
+    try {
+      await withTimeout(client.connect(), this.authTimeoutMs, 'Tempo esgotado ao autenticar no IMAP.');
+      await withTimeout(client.mailboxOpen('INBOX', { readOnly: true }), this.authTimeoutMs, 'Tempo esgotado ao abrir a INBOX.');
+      return {
+        uidValidity: String(client.mailbox.uidValidity || ''),
+        exists: Number(client.mailbox.exists || 0),
+      };
+    } catch (error) {
+      if (error instanceof ValidationError) throw error;
+      throw new ValidationError('Falha ao autenticar no IMAP. Verifique e-mail, senha de aplicativo e tente novamente.');
+    } finally {
+      await client.logout().catch(() => {});
+    }
+  }
+
   async fetchLatest({ email, password, previousUidValidity = null, previousUid = null }) {
     this.assertConfigured();
     enforceAllowedDomain(email, this.allowedDomains);

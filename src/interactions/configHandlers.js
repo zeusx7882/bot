@@ -101,6 +101,11 @@ const handleButton = withGuard(async (interaction, parsed, context) => {
       context.configService.removeDomain(guildId);
       return interaction.editReply(currentPanelPayload(context, guildId, interaction.guild.name, page));
     }
+    case 'normal_logs_remove': {
+      await interaction.deferUpdate();
+      context.configService.setNormalLogsChannel(guildId, null);
+      return interaction.editReply(currentPanelPayload(context, guildId, interaction.guild.name, page));
+    }
     case 'opt_add':
       return interaction.showModal(modals.buildOptionModal(guildId, page));
     case 'opt_edit': {
@@ -199,6 +204,9 @@ const handleSelect = withGuard(async (interaction, parsed, context) => {
     } else if (action === 'channel') {
       const channel = interaction.channels.first();
       context.configService.setPublishChannel(guildId, channel ? channel.id : null);
+    } else if (action === 'normal_logs_channel') {
+      const channel = interaction.channels.first();
+      context.configService.setNormalLogsChannel(guildId, channel ? channel.id : null);
     } else {
       logger.warn(`Ação de select de configuração desconhecida: ${action}`);
     }
@@ -231,6 +239,11 @@ const handleModalSubmit = withGuard(async (interaction, parsed, context) => {
       context.configService.updateEmailOption(guildId, {
         label: interaction.fields.getTextInputValue('label'),
         description: interaction.fields.getTextInputValue('description'),
+      });
+      context.configService.updateEmailConnectCopy(guildId, {
+        title: interaction.fields.getTextInputValue('connect_title'),
+        message: interaction.fields.getTextInputValue('connect_message'),
+        tutorial: interaction.fields.getTextInputValue('connect_tutorial'),
       });
     } else if (action === 'opt_add_submit') {
       context.configService.addOption(guildId, {
