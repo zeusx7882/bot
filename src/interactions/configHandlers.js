@@ -3,6 +3,9 @@
 const { ValidationError } = require('../domain/validation');
 const { AuthorizationError, assertGuildAdmin } = require('../utils/permissions');
 const {
+  CONFIG_PAGE_IDS,
+  resolveConfigPage,
+  pageFromAction,
   buildConfigPanel,
   buildOptionDetailView,
   buildOptionRemoveConfirmView,
@@ -14,9 +17,9 @@ const { publishPanel } = require('../services/panelPublisher');
 const { logger } = require('../utils/logger');
 const { MessageFlags } = require('discord.js');
 
-function currentPanelPayload(context, guildId, guildName) {
+function currentPanelPayload(context, guildId, guildName, page) {
   const { config, options } = context.configService.getOrCreate(guildId);
-  return buildConfigPanel({ guildId, guildName, config, options });
+  return buildConfigPanel({ guildId, guildName, config, options, page });
 }
 
 async function guard(interaction, expectedGuildId) {
@@ -47,27 +50,32 @@ function withGuard(handler) {
 const handleButton = withGuard(async (interaction, parsed, context) => {
   const { action, args } = parsed;
   const guildId = parsed.guildId;
+  const page = parseActionPage(action, args);
 
   switch (action) {
+    case 'nav': {
+      const targetPage = parseActionPage(action, args);
+      return interaction.update(currentPanelPayload(context, guildId, interaction.guild.name, targetPage));
+    }
     case 'title': {
       const { config } = context.configService.getOrCreate(guildId);
-      return interaction.showModal(modals.buildTitleModal(guildId, config.panel_title));
+      return interaction.showModal(modals.buildTitleModal(guildId, config.panel_title, page));
     }
     case 'desc': {
       const { config } = context.configService.getOrCreate(guildId);
-      return interaction.showModal(modals.buildDescriptionModal(guildId, config.panel_description));
+      return interaction.showModal(modals.buildDescriptionModal(guildId, config.panel_description, page));
     }
     case 'image': {
       const { config } = context.configService.getOrCreate(guildId);
-      return interaction.showModal(modals.buildImageModal(guildId, config.panel_image_url));
+      return interaction.showModal(modals.buildImageModal(guildId, config.panel_image_url, page));
     }
     case 'domain': {
       const { config } = context.configService.getOrCreate(guildId);
-      return interaction.showModal(modals.buildDomainModal(guildId, config.site_domain));
+      return interaction.showModal(modals.buildDomainModal(guildId, config.site_domain, page));
     }
     case 'email_opt': {
       const { config } = context.configService.getOrCreate(guildId);
-      return interaction.showModal(modals.buildEmailOptionModal(guildId, config));
+      return interaction.showModal(modals.buildEmailOptionModal(guildId, config, page));
     }
     case 'email_opt_toggle': {
       await interaction.deferUpdate();
@@ -81,45 +89,45 @@ const handleButton = withGuard(async (interaction, parsed, context) => {
           throw error;
         }
       }
-      return interaction.editReply(currentPanelPayload(context, guildId, interaction.guild.name));
+      return interaction.editReply(currentPanelPayload(context, guildId, interaction.guild.name, page));
     }
     case 'image_remove': {
       await interaction.deferUpdate();
       context.configService.removeImage(guildId);
-      return interaction.editReply(currentPanelPayload(context, guildId, interaction.guild.name));
+      return interaction.editReply(currentPanelPayload(context, guildId, interaction.guild.name, page));
     }
     case 'domain_remove': {
       await interaction.deferUpdate();
       context.configService.removeDomain(guildId);
-      return interaction.editReply(currentPanelPayload(context, guildId, interaction.guild.name));
+      return interaction.editReply(currentPanelPayload(context, guildId, interaction.guild.name, page));
     }
     case 'opt_add':
-      return interaction.showModal(modals.buildOptionModal(guildId));
+      return interaction.showModal(modals.buildOptionModal(guildId, page));
     case 'opt_edit': {
-      const optionId = args[0];
+      const optionId = args[0] || '';
       const option = context.configService.getOption(guildId, optionId);
       if (!option) {
         await interaction.deferUpdate();
-        return interaction.editReply(currentPanelPayload(context, guildId, interaction.guild.name));
+        return interaction.editReply(currentPanelPayload(context, guildId, interaction.guild.name, page));
       }
-      return interaction.showModal(modals.buildOptionModal(guildId, option));
+      return interaction.showModal(modals.buildOptionModal(guildId, page, { optionId: option.id, ...option }));
     }
     case 'opt_remove_confirm': {
-      const optionId = args[0];
+      const optionId = args[0] || '';
       const option = context.configService.getOption(guildId, optionId);
       if (!option) {
-        return interaction.update(currentPanelPayload(context, guildId, interaction.guild.name));
+        return interaction.update(currentPanelPayload(context, guildId, interaction.guild.name, page));
       }
-      return interaction.update(buildOptionRemoveConfirmView({ guildId, option }));
+      return interaction.update(buildOptionRemoveConfirmView({ guildId, option, page }));
     }
     case 'opt_remove': {
-      const optionId = args[0];
+      const optionId = args[0] || '';
       await interaction.deferUpdate();
       context.configService.removeOption(guildId, optionId);
-      return interaction.editReply(currentPanelPayload(context, guildId, interaction.guild.name));
+      return interaction.editReply(currentPanelPayload(context, guildId, interaction.guild.name, page));
     }
     case 'back':
-      return interaction.update(currentPanelPayload(context, guildId, interaction.guild.name));
+      return interaction.update(currentPanelPayload(context, guildId, interaction.guild.name, page));
     case 'preview': {
       const { config, options } = context.configService.getOrCreate(guildId);
       if (options.length === 0 && !config.email_option_enabled) {
@@ -140,7 +148,7 @@ const handleButton = withGuard(async (interaction, parsed, context) => {
             'Não é possível publicar: configure ao menos uma opção ativa e seus destinos obrigatórios (normal e/ou e-mail).',
           flags: MessageFlags.Ephemeral,
         });
-        return interaction.editReply(currentPanelPayload(context, guildId, interaction.guild.name));
+        return interaction.editReply(currentPanelPayload(context, guildId, interaction.guild.name, page));
       }
       try {
         await publishPanel({ guild: interaction.guild, config, options, configService: context.configService });
@@ -152,7 +160,7 @@ const handleButton = withGuard(async (interaction, parsed, context) => {
           flags: MessageFlags.Ephemeral,
         });
       }
-      return interaction.editReply(currentPanelPayload(context, guildId, interaction.guild.name));
+      return interaction.editReply(currentPanelPayload(context, guildId, interaction.guild.name, page));
     }
     case 'close':
       return interaction.update(buildClosedPanelView());
@@ -163,16 +171,17 @@ const handleButton = withGuard(async (interaction, parsed, context) => {
 });
 
 const handleSelect = withGuard(async (interaction, parsed, context) => {
-  const { action } = parsed;
+  const { action, args } = parsed;
   const guildId = parsed.guildId;
+  const page = parseActionPage(action, args);
 
   if (action === 'opt_manage') {
     const optionId = interaction.values[0];
     const option = context.configService.getOption(guildId, optionId);
     if (!option) {
-      return interaction.update(currentPanelPayload(context, guildId, interaction.guild.name));
+      return interaction.update(currentPanelPayload(context, guildId, interaction.guild.name, page));
     }
-    return interaction.update(buildOptionDetailView({ guildId, option }));
+    return interaction.update(buildOptionDetailView({ guildId, option, page }));
   }
 
   await interaction.deferUpdate();
@@ -201,12 +210,13 @@ const handleSelect = withGuard(async (interaction, parsed, context) => {
     }
   }
 
-  return interaction.editReply(currentPanelPayload(context, guildId, interaction.guild.name));
+  return interaction.editReply(currentPanelPayload(context, guildId, interaction.guild.name, page));
 });
 
 const handleModalSubmit = withGuard(async (interaction, parsed, context) => {
   const { action, args } = parsed;
   const guildId = parsed.guildId;
+  const page = parseActionPage(action, args);
 
   try {
     if (action === 'title_submit') {
@@ -245,11 +255,18 @@ const handleModalSubmit = withGuard(async (interaction, parsed, context) => {
     throw error;
   }
 
-  const payload = currentPanelPayload(context, guildId, interaction.guild.name);
+  const payload = currentPanelPayload(context, guildId, interaction.guild.name, page);
   if (interaction.isFromMessage && interaction.isFromMessage()) {
     return interaction.update(payload);
   }
   return interaction.reply(payload);
 });
+
+function parseActionPage(action, args) {
+  if (action === 'nav') return resolveConfigPage(args[0], CONFIG_PAGE_IDS.APPEARANCE);
+  const usesOptionAsFirstArg = action.startsWith('opt_') && action !== 'opt_add' && action !== 'opt_add_submit' && action !== 'opt_manage';
+  const pageArg = usesOptionAsFirstArg ? args[1] : args[0];
+  return resolveConfigPage(pageArg, pageFromAction(action, CONFIG_PAGE_IDS.APPEARANCE));
+}
 
 module.exports = { handleButton, handleSelect, handleModalSubmit };

@@ -82,7 +82,7 @@ test('handleButton "title" abre o modal de edição do título', async () => {
   await handleButton(interaction, parseCustomId(interaction), context);
 
   assert.ok(interaction._record.showModal);
-  assert.equal(interaction._record.showModal.data.custom_id, `tp:cfg:title_submit:${GUILD_ID}`);
+  assert.equal(interaction._record.showModal.data.custom_id, `tp:cfg:title_submit:${GUILD_ID}:appearance`);
 
   db.close();
 });
@@ -131,7 +131,7 @@ test('handleButton "opt_remove_confirm" mostra confirmação e "opt_remove" remo
 
 test('handleButton "back" retorna à view principal do painel', async () => {
   const { db, context } = setup();
-  const interaction = fakeButtonInteraction('back');
+  const interaction = fakeButtonInteraction('back', ['normals']);
 
   await handleButton(interaction, parseCustomId(interaction), context);
 
@@ -200,7 +200,7 @@ test('handleModalSubmit "title_submit" com valor inválido responde com erro ami
 
 test('handleModalSubmit "opt_add_submit" adiciona nova opção validada', async () => {
   const { db, context, configService } = setup();
-  const interaction = fakeButtonInteraction('opt_add_submit');
+  const interaction = fakeButtonInteraction('opt_add_submit', ['normals']);
   interaction.isFromMessage = () => true;
   const values = { label: 'Financeiro', description: 'Dúvidas de pagamento', emoji: '💰' };
   interaction.fields = { getTextInputValue: (key) => values[key] };
@@ -210,6 +210,37 @@ test('handleModalSubmit "opt_add_submit" adiciona nova opção validada', async 
   const options = configService.listOptions(GUILD_ID);
   assert.equal(options.length, 1);
   assert.equal(options[0].label, 'Financeiro');
+
+  db.close();
+});
+
+test('handleButton "nav" troca para a página solicitada', async () => {
+  const { db, context } = setup();
+  const interaction = fakeButtonInteraction('nav', ['publish']);
+
+  await handleButton(interaction, parseCustomId(interaction), context);
+
+  assert.equal(interaction._record.updates.length, 1);
+  const payload = interaction._record.updates[0];
+  const json = JSON.stringify(payload.components[0].toJSON());
+  assert.match(json, /tp:cfg:publish:guildA:publish/);
+  assert.doesNotMatch(json, /tp:cfg:email_opt:guildA:email/);
+
+  db.close();
+});
+
+test('handleModalSubmit de customId antigo sem página retorna página padrão da ação', async () => {
+  const { db, context } = setup();
+  const interaction = fakeButtonInteraction('title_submit');
+  interaction.customId = `tp:cfg:title_submit:${GUILD_ID}`;
+  interaction.isFromMessage = () => true;
+  interaction.fields = { getTextInputValue: () => 'Título legado' };
+
+  await handleModalSubmit(interaction, parseCustomId(interaction), context);
+
+  assert.equal(interaction._record.updates.length, 1);
+  const json = JSON.stringify(interaction._record.updates[0].components[0].toJSON());
+  assert.match(json, /Página 1\/4/);
 
   db.close();
 });

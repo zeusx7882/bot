@@ -2,7 +2,7 @@
 
 const { SlashCommandBuilder, PermissionFlagsBits, InteractionContextType, MessageFlags } = require('discord.js');
 const { assertGuildAdmin, AuthorizationError } = require('../utils/permissions');
-const { buildConfigPanel } = require('../ui/configPanel');
+const { buildConfigPanel, CONFIG_PAGE_IDS } = require('../ui/configPanel');
 const { logger } = require('../utils/logger');
 
 const data = new SlashCommandBuilder()
@@ -28,11 +28,26 @@ async function execute(interaction, context) {
     guildName: interaction.guild.name,
     config,
     options,
+    page: CONFIG_PAGE_IDS.APPEARANCE,
   });
 
-  await interaction.reply(payload).catch((error) => {
+  try {
+    await interaction.reply(payload);
+  } catch (error) {
     logger.error('Falha ao responder ao comando /ticket_painel', error);
-  });
+    const fallback = {
+      content: '❌ Não foi possível abrir o painel agora. Tente novamente com /ticket_painel.',
+      flags: MessageFlags.Ephemeral,
+      allowedMentions: { parse: [] },
+    };
+    try {
+      if (interaction.deferred || interaction.replied) {
+        await interaction.followUp(fallback);
+      } else {
+        await interaction.reply(fallback);
+      }
+    } catch {}
+  }
 }
 
 module.exports = { data, execute };

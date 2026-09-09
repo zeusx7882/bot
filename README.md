@@ -15,17 +15,20 @@ Bot de tickets em JavaScript (Node.js) com **Discord Components V2** e persistê
 
 ## Requisitos
 
-- Node.js >= 22.5
+- Node.js **22.23.2** (versão validada neste repositório) ou superior compatível com `node:sqlite` e `discord.js@14.27.0`.
 - Bot no Discord com permissões mínimas de criar/gerenciar canais e enviar mensagens.
 
-## Instalação
+## Instalação inicial (hospedagem Node genérica)
 
 ```bash
 git clone https://github.com/zeusx7882/bot.git
 cd bot
-npm install
+npm ci
 cp .env.example .env
 ```
+
+Preencha o `.env` com seus dados reais (token, IDs e IMAP).  
+**Nunca** commite `.env` nem segredos.
 
 ## Variáveis de ambiente
 
@@ -34,7 +37,7 @@ cp .env.example .env
 | `DISCORD_TOKEN` | sim | Token do bot |
 | `DISCORD_CLIENT_ID` | sim | Application ID |
 | `DISCORD_GUILD_ID` | não | Registro local de comandos em uma guild |
-| `DATA_DIR` | não | Diretório do SQLite (`./data`) |
+| `DATA_DIR` | não | Diretório persistente do SQLite (relativo à raiz do projeto ou absoluto). Padrão: `./data` |
 | `MAILCOW_IMAP_HOST` | sim para recurso e-mail | Host IMAP do operador |
 | `MAILCOW_IMAP_PORT` | não | Porta IMAPS (padrão 993) |
 | `MAILCOW_ALLOWED_DOMAINS` | sim para recurso e-mail | Domínios permitidos separados por vírgula |
@@ -66,14 +69,37 @@ cp .env.example .env
 
 > Administradores do Discord ainda podem acessar canais privados.
 
-## Comandos e execução
+## Registro de comandos (separado do start)
 
 ```bash
 npm run register:commands
+```
+
+- Com `DISCORD_GUILD_ID` definido: registra só na guild de desenvolvimento (rápido).
+- Sem `DISCORD_GUILD_ID`: registra globalmente (propagação pode levar até ~1 hora).
+- Para dois servidores, use registro global **ou** rode novamente mudando `DISCORD_GUILD_ID` para cada servidor.
+
+## Start e validação local
+
+```bash
 npm start
+# também funciona: node src/index.js (na raiz) ou node index.js (na pasta src)
 npm run check
 npm test
 ```
+
+## Atualização segura
+
+1. Pare o processo do bot.
+2. Faça backup consistente do banco em `DATA_DIR` (ex.: `ticket-bot.sqlite`).
+3. Atualize o código e rode `npm ci`.
+4. Preserve seu `.env` e o volume/pasta de `DATA_DIR`.
+5. Rode `npm run register:commands` apenas quando mudar comandos.
+6. Inicie com `npm start`.
+7. Em desligamento, envie `SIGINT`/`SIGTERM` para shutdown limpo.
+
+> Este projeto **não** faz deploy automático nem inclui endpoint HTTP por padrão.  
+> Ainda requer token/ambiente/IMAP reais para funcionar e os testes ao vivo em servidor Discord/IMAP não foram executados aqui.
 
 ## Checklist manual (Discord/Mobile/Mailcow)
 
@@ -87,4 +113,3 @@ npm test
 - [ ] **Encerrar** remove canal em 30s.
 - [ ] Inatividade de 6 minutos encerra ticket de e-mail.
 - [ ] Reinício do bot mantém deadlines remanescentes.
-

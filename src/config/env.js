@@ -1,9 +1,11 @@
 'use strict';
 
 const path = require('node:path');
+const fs = require('node:fs');
 const dotenv = require('dotenv');
 
-dotenv.config();
+const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
+loadDotEnv();
 
 function parseAllowedDomains(raw) {
   if (!raw || !raw.trim()) return [];
@@ -23,7 +25,7 @@ function parseAllowedDomains(raw) {
  * modo de teste (`NODE_ENV=test`), onde os valores podem ser sobrescritos.
  */
 function readEnv(env = process.env) {
-  const dataDir = path.resolve(env.DATA_DIR && env.DATA_DIR.trim() ? env.DATA_DIR.trim() : './data');
+  const dataDir = resolveDataDir(env.DATA_DIR, PROJECT_ROOT);
   const parsedPort = Number.parseInt(env.MAILCOW_IMAP_PORT || '993', 10);
 
   return {
@@ -40,6 +42,22 @@ function readEnv(env = process.env) {
   };
 }
 
+function resolveDataDir(rawDataDir, baseDir = PROJECT_ROOT) {
+  const fallback = 'data';
+  const value = rawDataDir && rawDataDir.trim() ? rawDataDir.trim() : fallback;
+  return path.isAbsolute(value) ? path.normalize(value) : path.resolve(baseDir, value);
+}
+
+function loadDotEnv() {
+  const candidates = Array.from(
+    new Set([path.join(PROJECT_ROOT, '.env'), path.join(process.cwd(), '.env')].map((value) => path.resolve(value)))
+  );
+  for (const envPath of candidates) {
+    if (!fs.existsSync(envPath)) continue;
+    dotenv.config({ path: envPath, override: false });
+  }
+}
+
 function assertRuntimeConfig(config) {
   const missing = [];
   if (!config.token) missing.push('DISCORD_TOKEN');
@@ -52,4 +70,4 @@ function assertRuntimeConfig(config) {
   }
 }
 
-module.exports = { readEnv, assertRuntimeConfig };
+module.exports = { PROJECT_ROOT, readEnv, assertRuntimeConfig, resolveDataDir };
