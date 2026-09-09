@@ -2,7 +2,7 @@
 
 const { PermissionFlagsBits, ChannelType } = require('discord.js');
 const { DuplicateTicketError } = require('../storage/ticketRepository');
-const { buildTicketOpenedMessage } = require('../ui/ticketMessage');
+const { buildTicketOpenedMessage, buildEmailTicketOpenedMessage } = require('../ui/ticketMessage');
 const { logger } = require('../utils/logger');
 
 class TicketServiceError extends Error {
@@ -21,19 +21,20 @@ class AlreadyHasTicketError extends Error {
 }
 
 class TicketService {
-  constructor({ ticketRepository, guildConfigRepository, panelOptionRepository }) {
+  constructor({ ticketRepository, guildConfigRepository, panelOptionRepository, emailTicketRepository = null }) {
     this.ticketRepository = ticketRepository;
     this.guildConfigRepository = guildConfigRepository;
     this.panelOptionRepository = panelOptionRepository;
+    this.emailTicketRepository = emailTicketRepository;
   }
 
-  /**
-   * Cria um ticket para `member` na `guild`, a partir da opção `optionId`.
-   * Todo o fluxo é resiliente: falhas em qualquer etapa liberam o lock do
-   * banco (permitindo nova tentativa) e desfazem o canal criado, se houver,
-   * evitando registros travados ou canais órfãos.
-   */
+
   async createTicket({ guild, member, optionId }) {
+    const created = await this.createNormalTicket({ guild, member, optionId });
+    return created.channel;
+  }
+
+  async createNormalTicket({ guild, member, optionId }) {
     const config = this.guildConfigRepository.get(guild.id);
     if (!config || !config.category_id || !config.support_role_id) {
       throw new TicketServiceError('O painel de tickets ainda não está totalmente configurado neste servidor.');
@@ -54,18 +55,17 @@ class TicketService {
       throw new TicketServiceError('O cargo de suporte configurado não existe mais. Avise um administrador.');
     }
 
-    const ticket = await this._acquireLock(guild, member.id, option);
-
+    const ticket = await this._acquireLock(guild, member.id, option, 'normal');
     const botMember = await guild.members.fetchMe().catch(() => guild.members.me);
 
     let channel = null;
     try {
       channel = await guild.channels.create({
-        name: buildChannelName(member.user.username),
+        name: buildChannelName(`ticket-${member.user.username}`),
         type: ChannelType.GuildText,
         parent: category.id,
         topic: `Ticket de ${member.user.tag} · Opção: ${option.label}`,
-        permissionOverwrites: buildPermissionOverwrites({
+        permissionOverwrites: buildNormalOverwrites({
           guildId: guild.id,
           memberId: member.id,
           supportRoleId: supportRole.id,
@@ -82,10 +82,10 @@ class TicketService {
         })
       );
 
-      this.ticketRepository.markOpen(ticket.id, channel.id);
-      return channel;
+      const opened = this.ticketRepository.markOpen(ticket.id, channel.id);
+      return { channel, ticket: opened };
     } catch (error) {
-      logger.error('Falha ao criar ticket, revertendo alterações', error);
+      logger.error('Falha ao criar ticket normal, revertendo alterações', error);
       this.ticketRepository.releaseLock(ticket.id);
       if (channel) {
         await channel.delete('Falha ao concluir a criação do ticket').catch(() => {});
@@ -94,32 +94,82 @@ class TicketService {
     }
   }
 
-  async _acquireLock(guild, userId, option) {
+  async createEmailTicket({ guild, member, optionLabel, optionDescription, inactivityDeadlineAt }) {
+    const config = this.guildConfigRepository.get(guild.id);
+    if (!config || !config.email_option_enabled || !config.email_category_id) {
+      throw new TicketServiceError('A opção de verificação de e-mail não está configurada neste servidor.');
+    }
+
+    const category = await guild.channels.fetch(config.email_category_id).catch(() => null);
+    if (!category || category.type !== ChannelType.GuildCategory) {
+      throw new TicketServiceError('A categoria exclusiva de e-mail não existe mais. Avise um administrador.');
+    }
+
+    const option = { id: '__email_verify_option__', label: optionLabel, description: optionDescription };
+    const ticket = await this._acquireLock(guild, member.id, option, 'email');
+    const botMember = await guild.members.fetchMe().catch(() => guild.members.me);
+
+    let channel = null;
     try {
-      return this.ticketRepository.createLock(guild.id, userId, option.id, option.label);
+      channel = await guild.channels.create({
+        name: buildChannelName(`email-${member.user.username}`),
+        type: ChannelType.GuildText,
+        parent: category.id,
+        topic: `Ticket de e-mail de ${member.user.tag}`,
+        permissionOverwrites: buildEmailOverwrites({
+          guildId: guild.id,
+          memberId: member.id,
+          botUserId: botMember?.id,
+        }),
+      });
+
+      const opened = this.ticketRepository.markOpen(ticket.id, channel.id);
+
+      await channel.send(
+        buildEmailTicketOpenedMessage({
+          guildId: guild.id,
+          authorId: member.id,
+          optionLabel,
+          optionDescription,
+          inactivityDeadlineAt,
+        })
+      );
+
+      return { channel, ticket: opened };
+    } catch (error) {
+      logger.error('Falha ao criar ticket de e-mail, revertendo alterações', error);
+      this.ticketRepository.releaseLock(ticket.id);
+      if (channel) {
+        await channel.delete('Falha ao concluir a criação do ticket').catch(() => {});
+      }
+      throw error;
+    }
+  }
+
+  async _acquireLock(guild, userId, option, ticketType) {
+    try {
+      return this.ticketRepository.createLock(guild.id, userId, option.id, option.label, ticketType);
     } catch (error) {
       if (!(error instanceof DuplicateTicketError)) throw error;
 
-      const existing = this.ticketRepository.findActive(guild.id, userId);
+      const existing = this.ticketRepository.findActive(guild.id, userId, ticketType);
       if (existing && existing.channel_id) {
         const stillExists = await guild.channels.fetch(existing.channel_id).catch(() => null);
         if (stillExists) {
           throw new AlreadyHasTicketError(existing.channel_id);
         }
-        // Canal foi apagado manualmente: libera o registro para permitir nova tentativa.
         this.ticketRepository.removeStale(existing.id);
       } else if (existing) {
-        // Estava preso em "creating" (ex.: processo anterior falhou antes de liberar).
         this.ticketRepository.removeStale(existing.id);
       }
 
-      return this.ticketRepository.createLock(guild.id, userId, option.id, option.label);
+      return this.ticketRepository.createLock(guild.id, userId, option.id, option.label, ticketType);
     }
   }
 }
 
-function buildChannelName(username) {
-  const base = `ticket-${username}`
+function buildChannelName(baseName) {
+  const base = baseName
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -129,13 +179,7 @@ function buildChannelName(username) {
   return (base || `ticket-${Date.now()}`).slice(0, 90);
 }
 
-/**
- * Overwrites explícitos e mínimos do canal do ticket: nega @everyone,
- * concede acesso apenas ao autor, ao cargo de suporte e ao bot. Não herda
- * overwrites permissivos da categoria (o Discord só sincroniza automático se
- * alguém clicar em "Sincronizar permissões").
- */
-function buildPermissionOverwrites({ guildId, memberId, supportRoleId, botUserId }) {
+function buildNormalOverwrites({ guildId, memberId, supportRoleId, botUserId }) {
   const memberPerms = [
     PermissionFlagsBits.ViewChannel,
     PermissionFlagsBits.SendMessages,
@@ -147,6 +191,33 @@ function buildPermissionOverwrites({ guildId, memberId, supportRoleId, botUserId
     { id: guildId, deny: [PermissionFlagsBits.ViewChannel] },
     { id: memberId, allow: memberPerms },
     { id: supportRoleId, allow: memberPerms },
+  ];
+
+  if (botUserId) {
+    overwrites.push({
+      id: botUserId,
+      allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.ReadMessageHistory,
+        PermissionFlagsBits.ManageChannels,
+      ],
+    });
+  }
+
+  return overwrites;
+}
+
+function buildEmailOverwrites({ guildId, memberId, botUserId }) {
+  const memberPerms = [
+    PermissionFlagsBits.ViewChannel,
+    PermissionFlagsBits.SendMessages,
+    PermissionFlagsBits.ReadMessageHistory,
+  ];
+
+  const overwrites = [
+    { id: guildId, deny: [PermissionFlagsBits.ViewChannel] },
+    { id: memberId, allow: memberPerms },
   ];
 
   if (botUserId) {

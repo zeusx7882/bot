@@ -1,12 +1,8 @@
 'use strict';
 
 const validation = require('../domain/validation');
+const { MAX_OPTIONS_PER_GUILD } = require('../storage/panelOptionRepository');
 
-/**
- * Camada de serviço que aplica validação de negócio antes de delegar para os
- * repositórios de persistência. Mantém a lógica de domínio fora dos
- * manipuladores de interação do Discord.
- */
 class ConfigService {
   constructor({ guildConfigRepository, panelOptionRepository }) {
     this.guildConfigRepository = guildConfigRepository;
@@ -51,10 +47,10 @@ class ConfigService {
     return this.guildConfigRepository.setCategory(guildId, categoryId);
   }
 
-  /**
-   * Define o cargo de suporte. Recusa o cargo @everyone (cujo id é igual ao
-   * id da guild) e recusa cargos de outro servidor.
-   */
+  setEmailCategory(guildId, categoryId) {
+    return this.guildConfigRepository.setEmailCategory(guildId, categoryId);
+  }
+
   setSupportRole(guildId, role) {
     if (!role || role.id === guildId) {
       throw new validation.ValidationError('O cargo @everyone não pode ser usado como equipe de suporte.');
@@ -106,15 +102,31 @@ class ConfigService {
     return this.panelOptionRepository.remove(guildId, optionId);
   }
 
-  /**
-   * Verifica se a configuração atual permite publicar o painel público:
-   * exige ao menos uma opção válida, categoria, cargo de suporte e canal de
-   * publicação configurados.
-   */
+  updateEmailOption(guildId, { label, description }) {
+    const nextLabel = validation.validateOptionLabel(label);
+    const nextDescription = validation.validateOptionDescription(description) || 'Abra um ticket de verificação de e-mail.';
+    this.guildConfigRepository.setEmailOptionLabel(guildId, nextLabel);
+    this.guildConfigRepository.setEmailOptionDescription(guildId, nextDescription);
+    return this.guildConfigRepository.get(guildId);
+  }
+
+  setEmailOptionEnabled(guildId, enabled) {
+    const currentOptions = this.panelOptionRepository.count(guildId);
+    if (enabled && currentOptions >= MAX_OPTIONS_PER_GUILD) {
+      throw new validation.ValidationError(
+        `Não é possível habilitar a opção de e-mail com ${MAX_OPTIONS_PER_GUILD} opções normais ativas.`
+      );
+    }
+    return this.guildConfigRepository.setEmailOptionEnabled(guildId, enabled);
+  }
+
   canPublish(config, options) {
-    return Boolean(
-      options.length > 0 && config.category_id && config.support_role_id && config.publish_channel_id
-    );
+    const hasNormal = options.length > 0;
+    const hasEmail = Boolean(config.email_option_enabled);
+    if (!config.publish_channel_id || (!hasNormal && !hasEmail)) return false;
+    if (hasNormal && (!config.category_id || !config.support_role_id)) return false;
+    if (hasEmail && !config.email_category_id) return false;
+    return true;
   }
 }
 

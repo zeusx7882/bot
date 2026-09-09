@@ -2,13 +2,9 @@
 
 const DEFAULT_TITLE = 'Central de Atendimento';
 const DEFAULT_DESCRIPTION = 'Selecione uma opção abaixo para abrir um ticket.';
+const DEFAULT_EMAIL_OPTION_LABEL = 'Verificar e-mail';
+const DEFAULT_EMAIL_OPTION_DESCRIPTION = 'Abra um ticket de verificação de e-mail.';
 
-/**
- * Repositório de configuração por guild. Todas as escritas usam `UPDATE` de
- * uma única coluna (nunca sobrescrevem o registro inteiro), para que edições
- * concorrentes em campos diferentes por administradores diferentes do mesmo
- * servidor não se percam entre si.
- */
 class GuildConfigRepository {
   constructor(db) {
     this.db = db;
@@ -27,12 +23,6 @@ class GuildConfigRepository {
 
   get(guildId) {
     return this.db.prepare('SELECT * FROM guild_config WHERE guild_id = ?').get(guildId) || null;
-  }
-
-  _touch(guildId) {
-    this.db
-      .prepare(`UPDATE guild_config SET updated_at = datetime('now') WHERE guild_id = ?`)
-      .run(guildId);
   }
 
   setField(guildId, field, value) {
@@ -62,6 +52,10 @@ class GuildConfigRepository {
     return this.setField(guildId, 'category_id', categoryId);
   }
 
+  setEmailCategory(guildId, categoryId) {
+    return this.setField(guildId, 'email_category_id', categoryId);
+  }
+
   setSupportRole(guildId, roleId) {
     return this.setField(guildId, 'support_role_id', roleId);
   }
@@ -72,6 +66,18 @@ class GuildConfigRepository {
 
   setDomain(guildId, domain) {
     return this.setField(guildId, 'site_domain', domain);
+  }
+
+  setEmailOptionEnabled(guildId, enabled) {
+    return this.setField(guildId, 'email_option_enabled', enabled ? 1 : 0);
+  }
+
+  setEmailOptionLabel(guildId, label) {
+    return this.setField(guildId, 'email_option_label', label);
+  }
+
+  setEmailOptionDescription(guildId, description) {
+    return this.setField(guildId, 'email_option_description', description);
   }
 
   setPublishedMessage(guildId, channelId, messageId) {
@@ -96,9 +102,19 @@ const ALLOWED_FIELDS = new Set([
   'panel_description',
   'panel_image_url',
   'category_id',
+  'email_category_id',
   'support_role_id',
   'publish_channel_id',
   'site_domain',
+  'email_option_enabled',
+  'email_option_label',
+  'email_option_description',
 ]);
 
-module.exports = { GuildConfigRepository, DEFAULT_TITLE, DEFAULT_DESCRIPTION };
+module.exports = {
+  GuildConfigRepository,
+  DEFAULT_TITLE,
+  DEFAULT_DESCRIPTION,
+  DEFAULT_EMAIL_OPTION_LABEL,
+  DEFAULT_EMAIL_OPTION_DESCRIPTION,
+};

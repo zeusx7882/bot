@@ -111,3 +111,20 @@ test('ConfigService: nenhuma publicação sem opções válidas (canPublish fals
 
   db.close();
 });
+
+
+test('ConfigService.canPublish com opção de e-mail exige categoria exclusiva', () => {
+  const { db, service } = setup();
+  service.getOrCreate('guild1');
+  service.setPublishChannel('guild1', 'chan1');
+  service.setEmailOptionEnabled('guild1', true);
+
+  let snapshot = service.getOrCreate('guild1');
+  assert.equal(service.canPublish(snapshot.config, snapshot.options), false);
+
+  service.setEmailCategory('guild1', 'cat-email');
+  snapshot = service.getOrCreate('guild1');
+  assert.equal(service.canPublish(snapshot.config, snapshot.options), true);
+
+  db.close();
+});

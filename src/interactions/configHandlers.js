@@ -19,12 +19,6 @@ function currentPanelPayload(context, guildId, guildName) {
   return buildConfigPanel({ guildId, guildName, config, options });
 }
 
-/**
- * Ponto único de revalidação: toda ação de configuração passa por aqui antes
- * de tocar no banco de dados ou responder à interação. Garante guild-only,
- * consistência entre o guildId do customId e o da interação, e permissão de
- * administrador *no momento da interação* (não reaproveita estado antigo).
- */
 async function guard(interaction, expectedGuildId) {
   await assertGuildAdmin(interaction, expectedGuildId);
 }
@@ -38,12 +32,6 @@ async function replyAuthError(interaction, error) {
   }
 }
 
-/**
- * Envolve um handler garantindo que `guard()` seja executado antes dele.
- * Centraliza o tratamento de `AuthorizationError` para os três tipos de
- * interação de configuração (botão, select e modal), evitando duplicar o
- * mesmo bloco try/catch em cada um.
- */
 function withGuard(handler) {
   return async (interaction, parsed, context) => {
     try {
@@ -76,6 +64,24 @@ const handleButton = withGuard(async (interaction, parsed, context) => {
     case 'domain': {
       const { config } = context.configService.getOrCreate(guildId);
       return interaction.showModal(modals.buildDomainModal(guildId, config.site_domain));
+    }
+    case 'email_opt': {
+      const { config } = context.configService.getOrCreate(guildId);
+      return interaction.showModal(modals.buildEmailOptionModal(guildId, config));
+    }
+    case 'email_opt_toggle': {
+      await interaction.deferUpdate();
+      try {
+        const { config } = context.configService.getOrCreate(guildId);
+        context.configService.setEmailOptionEnabled(guildId, !config.email_option_enabled);
+      } catch (error) {
+        if (error instanceof ValidationError) {
+          await interaction.followUp({ content: `❌ ${error.message}`, flags: MessageFlags.Ephemeral });
+        } else {
+          throw error;
+        }
+      }
+      return interaction.editReply(currentPanelPayload(context, guildId, interaction.guild.name));
     }
     case 'image_remove': {
       await interaction.deferUpdate();
@@ -116,7 +122,7 @@ const handleButton = withGuard(async (interaction, parsed, context) => {
       return interaction.update(currentPanelPayload(context, guildId, interaction.guild.name));
     case 'preview': {
       const { config, options } = context.configService.getOrCreate(guildId);
-      if (options.length === 0) {
+      if (options.length === 0 && !config.email_option_enabled) {
         return interaction.reply({
           content: 'Adicione ao menos uma opção antes de pré-visualizar o painel.',
           flags: MessageFlags.Ephemeral,
@@ -131,7 +137,7 @@ const handleButton = withGuard(async (interaction, parsed, context) => {
       if (!context.configService.canPublish(config, options)) {
         await interaction.followUp({
           content:
-            'Não é possível publicar: configure ao menos uma opção, a categoria, o cargo de suporte e o canal de publicação.',
+            'Não é possível publicar: configure ao menos uma opção ativa e seus destinos obrigatórios (normal e/ou e-mail).',
           flags: MessageFlags.Ephemeral,
         });
         return interaction.editReply(currentPanelPayload(context, guildId, interaction.guild.name));
@@ -175,6 +181,9 @@ const handleSelect = withGuard(async (interaction, parsed, context) => {
     if (action === 'category') {
       const category = interaction.channels.first();
       context.configService.setCategory(guildId, category ? category.id : null);
+    } else if (action === 'email_category') {
+      const category = interaction.channels.first();
+      context.configService.setEmailCategory(guildId, category ? category.id : null);
     } else if (action === 'role') {
       const role = interaction.roles.first();
       context.configService.setSupportRole(guildId, role);
@@ -208,6 +217,11 @@ const handleModalSubmit = withGuard(async (interaction, parsed, context) => {
       context.configService.updateImage(guildId, interaction.fields.getTextInputValue('value'));
     } else if (action === 'domain_submit') {
       context.configService.updateDomain(guildId, interaction.fields.getTextInputValue('value'));
+    } else if (action === 'email_opt_submit') {
+      context.configService.updateEmailOption(guildId, {
+        label: interaction.fields.getTextInputValue('label'),
+        description: interaction.fields.getTextInputValue('description'),
+      });
     } else if (action === 'opt_add_submit') {
       context.configService.addOption(guildId, {
         label: interaction.fields.getTextInputValue('label'),

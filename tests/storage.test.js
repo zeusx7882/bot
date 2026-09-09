@@ -145,3 +145,15 @@ test('TicketRepository: markOpen registra o canal e o status', () => {
 
   db.close();
 });
+
+
+test('TicketRepository permite ticket normal e de e-mail simultâneos para o mesmo usuário', () => {
+  const dbPath = tempDbPath();
+  const db = openDatabase(dbPath);
+  const repo = new TicketRepository(db);
+
+  assert.doesNotThrow(() => repo.createLock('guild1', 'user1', 'opt1', 'Suporte', 'normal'));
+  assert.doesNotThrow(() => repo.createLock('guild1', 'user1', '__email_verify_option__', 'Verificar e-mail', 'email'));
+
+  db.close();
+});
