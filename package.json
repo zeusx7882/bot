@@ -1,23 +1,16 @@
 {
-  "name": "ticket-bot",
-  "version": "1.0.0",
-  "description": "Bot de tickets para Discord usando Components V2",
+  "name": "zeusx7882-bot-monorepo",
   "private": true,
   "license": "MIT",
-  "main": "index.js",
-  "engines": {
-    "node": ">=22.5.0"
-  },
   "scripts": {
-    "start": "node index.js",
-    "register:commands": "node scripts/registerCommands.js",
-    "test": "node --test",
-    "check": "node scripts/checkSyntax.js"
-  },
-  "dependencies": {
-    "discord.js": "14.27.0",
-    "dotenv": "17.4.2",
-    "imapflow": "^2.0.0",
-    "mailparser": "^3.9.23"
+    "start": "npm --prefix bot start",
+    "start:bot": "npm --prefix bot start",
+    "start:site": "npm --prefix site start",
+    "test": "npm --prefix bot test && npm --prefix site test",
+    "test:bot": "npm --prefix bot test",
+    "test:site": "npm --prefix site test",
+    "check": "npm --prefix bot run check && npm --prefix site run check",
+    "check:bot": "npm --prefix bot run check",
+    "check:site": "npm --prefix site run check"
   }
 }

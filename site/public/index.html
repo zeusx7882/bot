@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Portal</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="brand">Portal</div>
+        <nav class="menu" aria-label="Principal">
+          <button class="menu-btn" data-view="catalogo">Gerador</button>
+          <button class="menu-btn" data-view="historico">Histórico</button>
+          <button class="menu-btn" data-view="transcripts">Transcripts</button>
+        </nav>
+        <div id="userBox" class="user-box"></div>
+        <button id="logoutBtn" class="ghost">Sair</button>
+      </aside>
+      <main class="content">
+        <header class="topbar">
+          <div class="mobile-nav">
+            <button class="menu-btn" data-view="catalogo">Gerador</button>
+            <button class="menu-btn" data-view="historico">Histórico</button>
+            <button class="menu-btn" data-view="transcripts">Transcripts</button>
+          </div>
+          <a id="loginBtn" class="primary" href="/auth/login">Entrar com Discord</a>
+        </header>
+
+        <section id="messageBox" class="message hidden" aria-live="polite"></section>
+
+        <section id="catalogo" class="view-section">
+          <div class="hero card">
+            <div>
+              <h1>Gerador</h1>
+              <p>Login com Discord, cooldown global de 50 segundos e catálogo atualizado pelo servidor.</p>
+            </div>
+            <div class="countdown-box">
+              <span>Próxima geração em</span>
+              <strong id="countdownValue">0s</strong>
+            </div>
+          </div>
+          <div id="catalogGrid" class="grid"></div>
+        </section>
+
+        <section id="historico" class="view-section hidden">
+          <div class="card"><h2>Contas geradas</h2><p>Privado por usuário e agrupado por serviço.</p></div>
+          <div id="historyList" class="stack"></div>
+        </section>
+
+        <section id="transcripts" class="view-section hidden">
+          <div class="card"><h2>Transcripts</h2><p>Apenas seus tickets ou tickets de guilds em que seu usuário esteja na allowlist de staff.</p></div>
+          <div id="transcriptList" class="stack"></div>
+          <div id="transcriptDetail" class="card hidden"></div>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="accountDialog">
+      <form method="dialog" class="dialog-content">
+        <h3>Conta gerada</h3>
+        <textarea id="accountText" readonly rows="6"></textarea>
+        <div class="dialog-actions">
+          <button id="copyAccountBtn" type="button" class="primary">Copiar</button>
+          <button type="submit" class="ghost">Fechar</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="/app.js" defer></script>
+  </body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "name": "ticket-site",
+  "version": "1.0.0",
+  "description": "Portal web para estoque e transcripts do bot",
+  "private": true,
+  "license": "MIT",
+  "main": "index.js",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "test": "node --test",
+    "check": "node scripts/checkSyntax.js"
+  },
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}
