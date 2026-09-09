@@ -11,7 +11,6 @@ const data = new SlashCommandBuilder()
   .setContexts(InteractionContextType.Guild)
   .addStringOption((opt) => opt.setName('nome').setDescription('Nome da cobrança').setRequired(true).setMaxLength(120))
   .addStringOption((opt) => opt.setName('valor').setDescription('Valor textual (major/minor conforme config)').setRequired(true).setMaxLength(32))
-  .addStringOption((opt) => opt.setName('descricao').setDescription('Descrição opcional').setRequired(false).setMaxLength(200))
   .addStringOption((opt) =>
     opt
       .setName('metodo')
@@ -24,7 +23,8 @@ const data = new SlashCommandBuilder()
         { name: 'CUSTOMER_BALANCE', value: 'CUSTOMER_BALANCE' },
         { name: 'LITECOIN', value: 'LITECOIN' }
       )
-  );
+  )
+  .addStringOption((opt) => opt.setName('descricao').setDescription('Descrição opcional').setRequired(false).setMaxLength(200));
 
 async function execute(interaction, context) {
   try {
