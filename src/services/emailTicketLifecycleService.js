@@ -5,9 +5,10 @@ const { logger } = require('../utils/logger');
 const { buildInfoMessage } = require('../ui/ticketMessage');
 
 class EmailTicketLifecycleService {
-  constructor({ ticketRepository, emailTicketRepository, sessionService, now = () => Date.now() }) {
+  constructor({ ticketRepository, emailTicketRepository, emailResultMessageRepository = null, sessionService, now = () => Date.now() }) {
     this.ticketRepository = ticketRepository;
     this.emailTicketRepository = emailTicketRepository;
+    this.emailResultMessageRepository = emailResultMessageRepository;
     this.sessionService = sessionService;
     this.now = now;
     this.client = null;
@@ -62,6 +63,7 @@ class EmailTicketLifecycleService {
     clearTimer(this.inactivityTimers, ticketId);
     clearTimer(this.closeTimers, ticketId);
     this.emailTicketRepository.clear(ticketId);
+    this.emailResultMessageRepository?.clearTicket(ticketId);
     this.sessionService.clearCredentials(ticketId);
   }
 

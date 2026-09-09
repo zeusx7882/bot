@@ -130,3 +130,55 @@ test('router: painel público de outra guild não abre ticket (isolamento entre 
   assert.equal(replies.length, 1);
   assert.match(replies[0].content, /não é válido neste servidor/);
 });
+
+test('router: encaminha botão de pagamento para o handler correto', async () => {
+  const replies = [];
+  const interaction = {
+    customId: 'tp:pay:copy_link:guildA:7',
+    guildId: 'guildA',
+    channelId: 'chan1',
+    guild: {
+      ...fakeGuild('guildA', true),
+      members: {
+        fetch: async () => ({
+          permissions: fakePermissions(true),
+          roles: { cache: { has: () => false } },
+        }),
+      },
+    },
+    channel: {
+      permissionsFor: () => ({ has: () => true }),
+    },
+    message: { id: 'msg1' },
+    user: { id: 'user1' },
+    inGuild: () => true,
+    isChatInputCommand: () => false,
+    isButton: () => true,
+    isAnySelectMenu: () => false,
+    isModalSubmit: () => false,
+    isRepliable: () => true,
+    replied: false,
+    deferred: false,
+    reply: async (payload) => {
+      replies.push(payload);
+    },
+  };
+  const context = {
+    commands: new Map(),
+    paymentLinkRepository: {
+      getById: () => ({
+        id: 7,
+        guild_id: 'guildA',
+        channel_id: 'chan1',
+        message_id: 'msg1',
+        creator_user_id: 'owner1',
+        payment_url: 'https://pay.example/a',
+      }),
+    },
+  };
+
+  await routeInteraction(interaction, context);
+
+  assert.equal(replies.length, 1);
+  assert.equal(replies[0].content, 'https://pay.example/a');
+});

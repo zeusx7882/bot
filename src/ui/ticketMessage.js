@@ -36,7 +36,11 @@ function buildTicketOpenedMessage({ guildId, authorId, supportRoleId, optionLabe
       new ButtonBuilder()
         .setCustomId(customId.build('ticket', 'normal_close', guildId))
         .setLabel('Encerrar ticket')
-        .setStyle(ButtonStyle.Danger)
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId(customId.build('ticket', 'normal_notify', guildId))
+        .setLabel('Avisar autor')
+        .setStyle(ButtonStyle.Secondary)
     )
   );
 
@@ -116,7 +120,7 @@ function buildEmailConnectedMessage({ email, hiddenPasswordLabel = '••••
   return { flags: MessageFlags.IsComponentsV2, components: [container], allowedMentions: { parse: [] } };
 }
 
-function buildEmailResultMessage(result) {
+function buildEmailResultMessage({ guildId, result }) {
   const container = new ContainerBuilder();
   if (!result.message) {
     container.addTextDisplayComponents(
@@ -148,6 +152,14 @@ function buildEmailResultMessage(result) {
   lines.push('', '_Não assuma autenticidade apenas pelo remetente._');
 
   container.addTextDisplayComponents(new TextDisplayBuilder().setContent(lines.join('\n')));
+  container.addActionRowComponents(
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(customId.build('ticket', 'email_result_delete', guildId))
+        .setLabel('Apagar esta mensagem')
+        .setStyle(ButtonStyle.Secondary)
+    )
+  );
   return { flags: MessageFlags.IsComponentsV2, components: [container], allowedMentions: { parse: [] } };
 }
 

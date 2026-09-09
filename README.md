@@ -9,9 +9,10 @@ Bot de tickets em JavaScript (Node.js) com **Discord Components V2** e persistê
 - Opção especial configurável **Verificar e-mail** (habilitar/desabilitar, editar título/descrição e categoria exclusiva).
 - Fluxo de verificação de e-mail via modal (`email:senha` ou `email:senha:extra`) com autenticação inicial sem fetch automático.
 - Acesso IMAP TLS (Mailcow) com host/porta fixos via ambiente e allowlist de domínios.
-- Ticket de e-mail privado (autor + bot), botões **Verificar**, **Mostrar conta para copiar** e **Encerrar**.
+- Ticket de e-mail privado (autor + bot), botões **Verificar**, **Mostrar conta para copiar**, **Apagar esta mensagem** (nos resultados) e **Encerrar**.
 - Logs/transcripts HTML para tickets normais com canal configurável por guild e fechamento com confirmação.
-- Comando `/link_pagamento` (Sharpify) para administradores, com cartão público V2 e verificação de status sob demanda.
+- Tickets normais com botão **Avisar autor** (DM com fallback controlado no próprio ticket).
+- Comando `/link_pagamento` (Sharpify) para administradores, com cartão público V2, cópia compatível com mobile e verificação de status sob demanda.
 - Fechamento automático: 30s após encerrar manualmente e 6 minutos sem atividade válida do autor.
 - Deadlines persistidas no SQLite para recuperar após reinício (sem estender prazo).
 
@@ -72,9 +73,11 @@ Preencha o `.env` com seus dados reais (token, IDs e IMAP).
 3. Bot autentica no IMAP (TLS, timeout, domínio permitido) e só então cria o canal da categoria exclusiva.
 4. Ticket inicia com “Conectado à caixa de correio com sucesso” e mini tutorial configurável por guild.
 5. Primeiro botão **Verificar** busca o último e-mail atual da INBOX (inclusive pré-existente); cliques seguintes buscam novidades por `UID`/`UIDVALIDITY`.
-6. Botão **Mostrar conta para copiar** retorna e-mail/senha separados em resposta efêmera selecionável (sem clipboard automático).
-7. Botão **Encerrar** agenda exclusão do canal em 30 segundos.
-8. Sem atividade válida do autor por 6 minutos, encerra automaticamente.
+6. Botão **Mostrar conta para copiar** responde **no chat** em mensagem efêmera visível só ao solicitante, no formato bruto `email:senha`, para facilitar copiar no celular.
+7. Cada mensagem de resultado publicada por **Verificar** recebe botão **Apagar esta mensagem**; ele remove somente aquela mensagem do bot, nunca e-mails da INBOX.
+8. Após reinício/perda da sessão, as credenciais não são reidratadas do banco; o usuário precisa se reautenticar via modal antes de verificar/copiar novamente.
+9. Botão **Encerrar** agenda exclusão do canal em 30 segundos.
+10. Sem atividade válida do autor por 6 minutos, encerra automaticamente.
 
 > Administradores do Discord ainda podem acessar canais privados.
 
@@ -125,7 +128,11 @@ npm test
 ## Tickets normais: fechamento, logs e transcripts
 
 - A mensagem inicial do ticket normal inclui botão **Encerrar ticket**.
+- A mensagem inicial do ticket normal também inclui **Avisar autor**.
 - Encerramento permitido para autor do ticket, equipe de suporte configurada ou administrador.
+- **Avisar autor** é permitido apenas para equipe de suporte configurada ou administrador.
+- O aviso tenta enviar DM `Seu ticket foi respondido` com link do canal; se a DM falhar, o bot faz fallback com uma única menção controlada ao dono dentro do ticket.
+- Há cooldown de 60s por ticket para evitar spam no botão de aviso.
 - Canal de logs é configurável em **/ticket_painel → Tickets normais** (opcional).
 - Quando logs estão ativos, o bot arquiva transcript HTML estático antes de excluir o canal.
 - Tickets de e-mail ficam fora de logs/transcripts.
@@ -135,6 +142,25 @@ npm test
 
 - Comando guild-only e administrador por padrão.
 - Publica cartão Components V2 **não efêmero** no canal com status/método/valor.
+- Quando a API retorna código PIX, o cartão inclui **Copiar código**; quando retorna URL `https`, inclui **Copiar link** e **Abrir pagamento**.
+- Os botões de cópia respondem em mensagem efêmera simples no chat, sem clipboard nativo e sem misturar Components V2 com o texto copiável.
 - Botão **Abrir pagamento** aparece apenas com URL `https` retornada pela API.
-- Botão **Verificar pagamento** consulta endpoint GET e atualiza o cartão; não marca pago por clique.
+- Botão **Verificar pagamento** consulta endpoint GET, faz ack antes da rede e atualiza o cartão; não marca pago por clique.
 - Por ambiguidade de unidade monetária em docs indisponíveis no ambiente, a configuração explícita de unidade/moeda é obrigatória (fail-closed).
+
+## Atualizando sem perder `.env` e `data`
+
+1. Pare o processo atual.
+2. Substitua apenas os arquivos do código/`package*.json` necessários.
+3. Preserve sua pasta `data`/`DATA_DIR` e o arquivo `.env`.
+4. Rode `npm ci`.
+5. Rode `npm run register:commands` se você atualizou comandos/botões.
+6. Rode `npm run check`, `npm test` e depois `npm start`.
+
+## Checklist manual sugerido (desktop/Android/iOS)
+
+- [ ] Desktop: `/link_pagamento` publica cartão com **Copiar código**/**Copiar link** quando aplicável.
+- [ ] Android: a resposta efêmera de cópia do pagamento permite usar a ação nativa de copiar texto da mensagem.
+- [ ] iOS: a resposta efêmera de **Mostrar conta para copiar** permite copiar `email:senha` sem markdown extra.
+- [ ] Desktop/mobile: **Apagar esta mensagem** remove apenas o resultado de e-mail clicado.
+- [ ] Desktop/mobile: **Avisar autor** envia DM ou faz fallback com uma única menção no ticket.

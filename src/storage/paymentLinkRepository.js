@@ -18,8 +18,8 @@ class PaymentLinkRepository {
       .prepare(
         `INSERT INTO payment_link_state (
           guild_id, channel_id, message_id, creator_user_id, payment_link_id, name, description,
-          amount_input, amount_unit, currency, gateway_method, status, payment_url, operation_interaction_id
-        ) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          amount_input, amount_unit, currency, gateway_method, status, payment_url, payment_code, operation_interaction_id
+        ) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         data.guildId,
@@ -34,6 +34,7 @@ class PaymentLinkRepository {
         data.gatewayMethod,
         data.status,
         data.paymentUrl || null,
+        data.paymentCode || null,
         data.operationInteractionId
       );
     return this.getById(result.lastInsertRowid);
@@ -58,12 +59,14 @@ class PaymentLinkRepository {
     return this.getById(id);
   }
 
-  updateStatusAndUrl(id, status, paymentUrl) {
+  updateStatusAndFields(id, { status, paymentUrl, paymentCode }) {
     this.db
       .prepare(
-        "UPDATE payment_link_state SET status = ?, payment_url = ?, updated_at = datetime('now') WHERE id = ?"
+        `UPDATE payment_link_state
+         SET status = ?, payment_url = ?, payment_code = ?, updated_at = datetime('now')
+         WHERE id = ?`
       )
-      .run(status, paymentUrl || null, id);
+      .run(status, paymentUrl || null, paymentCode || null, id);
     return this.getById(id);
   }
 }

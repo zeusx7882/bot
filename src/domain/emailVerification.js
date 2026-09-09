@@ -14,7 +14,7 @@ const DEFAULT_EMAIL_CONNECT_MESSAGE = 'A autenticação foi concluída. Use o bo
 const DEFAULT_EMAIL_CONNECT_TUTORIAL = [
   '1. Clique em **Verificar** para ler a mensagem mais recente (inclusive recebida antes da abertura).',
   '2. Novos cliques trazem apenas novas mensagens por UID/UIDVALIDITY, sem duplicar.',
-  '3. Use **Mostrar conta para copiar** para visualizar e-mail/senha em resposta efêmera.',
+  '3. Use **Mostrar conta para copiar** para visualizar e-mail:senha no chat efêmero.',
   '4. Clique em **Encerrar** para fechar este ticket com segurança.',
 ].join('\n');
 

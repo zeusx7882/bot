@@ -3,6 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
+const { DEFAULT_EMAIL_CONNECT_TUTORIAL } = require('../domain/emailVerification');
 
 function openDatabase(dbPath) {
   const dir = path.dirname(dbPath);
@@ -58,8 +59,9 @@ function migrate(db) {
     db,
     'guild_config',
     'email_connect_tutorial',
-    "TEXT NOT NULL DEFAULT '1. Clique em **Verificar** para ler a mensagem mais recente (inclusive recebida antes da abertura).\\n2. Novos cliques trazem apenas novas mensagens por UID/UIDVALIDITY, sem duplicar.\\n3. Use **Mostrar conta para copiar** para visualizar e-mail/senha em resposta efêmera.\\n4. Clique em **Encerrar** para fechar este ticket com segurança.'"
+    "TEXT NOT NULL DEFAULT '1. Clique em **Verificar** para ler a mensagem mais recente (inclusive recebida antes da abertura).\n2. Novos cliques trazem apenas novas mensagens por UID/UIDVALIDITY, sem duplicar.\n3. Use **Mostrar conta para copiar** para visualizar e-mail:senha no chat efêmero.\n4. Clique em **Encerrar** para fechar este ticket com segurança.'"
   );
+  normalizeLegacyEmailTutorial(db);
   ensureColumn(db, 'guild_config', 'normal_logs_channel_id', 'TEXT');
 
   db.exec(`
@@ -166,14 +168,43 @@ function migrate(db) {
       gateway_method TEXT NOT NULL,
       status TEXT NOT NULL,
       payment_url TEXT,
+      payment_code TEXT,
       operation_interaction_id TEXT UNIQUE,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
+  ensureColumn(db, 'payment_link_state', 'payment_code', 'TEXT');
   db.exec(
     'CREATE UNIQUE INDEX IF NOT EXISTS idx_payment_link_unique ON payment_link_state (guild_id, payment_link_id);'
   );
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS email_result_message_state (
+      message_id TEXT PRIMARY KEY,
+      ticket_id INTEGER NOT NULL,
+      guild_id TEXT NOT NULL,
+      channel_id TEXT NOT NULL,
+      owner_user_id TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
+    );
+  `);
+  db.exec(
+    'CREATE INDEX IF NOT EXISTS idx_email_result_message_channel ON email_result_message_state (guild_id, channel_id);'
+  );
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS normal_ticket_alert_state (
+      ticket_id INTEGER PRIMARY KEY,
+      guild_id TEXT NOT NULL,
+      channel_id TEXT NOT NULL,
+      owner_user_id TEXT NOT NULL,
+      last_sent_at INTEGER NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
+    );
+  `);
 }
 
 function ensureColumn(db, tableName, columnName, definition) {
@@ -181,6 +212,20 @@ function ensureColumn(db, tableName, columnName, definition) {
   if (!columns.some((column) => column.name === columnName)) {
     db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition};`);
   }
+}
+
+function normalizeLegacyEmailTutorial(db) {
+  const legacyDefault =
+    '1. Clique em **Verificar** para ler a mensagem mais recente (inclusive recebida antes da abertura).\\n' +
+    '2. Novos cliques trazem apenas novas mensagens por UID/UIDVALIDITY, sem duplicar.\\n' +
+    '3. Use **Mostrar conta para copiar** para visualizar e-mail/senha em resposta efêmera.\\n' +
+    '4. Clique em **Encerrar** para fechar este ticket com segurança.';
+
+  db.prepare(
+    `UPDATE guild_config
+     SET email_connect_tutorial = ?, updated_at = datetime('now')
+     WHERE email_connect_tutorial = ?`
+  ).run(DEFAULT_EMAIL_CONNECT_TUTORIAL, legacyDefault);
 }
 
 module.exports = { openDatabase };

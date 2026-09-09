@@ -8,8 +8,11 @@ const path = require('node:path');
 
 const { openDatabase } = require('../src/storage/database');
 const { GuildConfigRepository } = require('../src/storage/guildConfigRepository');
+const { DEFAULT_EMAIL_CONNECT_TUTORIAL } = require('../src/domain/emailVerification');
 const { PanelOptionRepository, MAX_OPTIONS_PER_GUILD } = require('../src/storage/panelOptionRepository');
 const { TicketRepository, DuplicateTicketError } = require('../src/storage/ticketRepository');
+const { EmailResultMessageRepository } = require('../src/storage/emailResultMessageRepository');
+const { NormalTicketAlertRepository } = require('../src/storage/normalTicketAlertRepository');
 
 function tempDbPath() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ticket-bot-test-'));
@@ -154,6 +157,52 @@ test('TicketRepository permite ticket normal e de e-mail simultâneos para o mes
 
   assert.doesNotThrow(() => repo.createLock('guild1', 'user1', 'opt1', 'Suporte', 'normal'));
   assert.doesNotThrow(() => repo.createLock('guild1', 'user1', '__email_verify_option__', 'Verificar e-mail', 'email'));
+
+  db.close();
+});
+
+test('openDatabase migra o tutorial legado com \\\\n literais para quebras reais', () => {
+  const dbPath = tempDbPath();
+  let db = openDatabase(dbPath);
+  const repo = new GuildConfigRepository(db);
+  repo.ensure('guild1');
+  db.prepare(
+    "UPDATE guild_config SET email_connect_tutorial = '1. Clique em **Verificar** para ler a mensagem mais recente (inclusive recebida antes da abertura).\\n2. Novos cliques trazem apenas novas mensagens por UID/UIDVALIDITY, sem duplicar.\\n3. Use **Mostrar conta para copiar** para visualizar e-mail/senha em resposta efêmera.\\n4. Clique em **Encerrar** para fechar este ticket com segurança.' WHERE guild_id = 'guild1'"
+  ).run();
+  db.close();
+
+  db = openDatabase(dbPath);
+  assert.equal(new GuildConfigRepository(db).get('guild1').email_connect_tutorial, DEFAULT_EMAIL_CONNECT_TUTORIAL);
+  db.close();
+});
+
+test('repositórios novos persistem rastreio de resultados de e-mail e cooldown de aviso', () => {
+  const db = openDatabase(tempDbPath());
+  const tickets = new TicketRepository(db);
+  const emailResults = new EmailResultMessageRepository(db);
+  const alerts = new NormalTicketAlertRepository(db);
+
+  const emailTicket = tickets.createLock('guild1', 'user1', '__email__', 'Verificar e-mail', 'email');
+  tickets.markOpen(emailTicket.id, 'chan-email');
+  emailResults.track({
+    ticketId: emailTicket.id,
+    guildId: 'guild1',
+    channelId: 'chan-email',
+    messageId: 'msg-email',
+    ownerUserId: 'user1',
+  });
+  assert.equal(emailResults.getByMessage('guild1', 'chan-email', 'msg-email').ticket_id, emailTicket.id);
+
+  const normalTicket = tickets.createLock('guild1', 'user2', 'opt1', 'Suporte', 'normal');
+  tickets.markOpen(normalTicket.id, 'chan-normal');
+  alerts.markSent({
+    ticketId: normalTicket.id,
+    guildId: 'guild1',
+    channelId: 'chan-normal',
+    ownerUserId: 'user2',
+    sentAt: 12345,
+  });
+  assert.equal(alerts.getByTicketId(normalTicket.id).last_sent_at, 12345);
 
   db.close();
 });
